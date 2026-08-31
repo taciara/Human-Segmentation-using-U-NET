@@ -49,8 +49,10 @@
         }
         #cam {
             position: absolute;
-            width: 1px;
-            height: 1px;
+            left: -9999px;
+            top: 0;
+            width: 1280px;
+            height: 720px;
             opacity: 0;
             pointer-events: none;
         }
@@ -187,26 +189,49 @@
         const preview = document.getElementById("preview");
         const previewBox = document.getElementById("previewBox");
         const sendCanvas = document.createElement("canvas");
-        sendCanvas.width = 640;
-        sendCanvas.height = 360;
-        const sendCtx = sendCanvas.getContext("2d");
+        const MAX_W = 1920;
+        const MAX_H = 1080;
+        const sendCtx = sendCanvas.getContext("2d", { alpha: false });
+        sendCtx.imageSmoothingEnabled = true;
+        sendCtx.imageSmoothingQuality = "high";
+        sendCanvas.width = MAX_W;
+        sendCanvas.height = MAX_H;
+        sendCtx.imageSmoothingEnabled = true;
+        sendCtx.imageSmoothingQuality = "high";
         let lastBlobUrl = null;
+
+        function drawMirrored() {
+            const vw = cam.videoWidth || MAX_W;
+            const vh = cam.videoHeight || MAX_H;
+            const scale = Math.min(MAX_W / vw, MAX_H / vh);
+            const dw = Math.round(vw * scale);
+            const dh = Math.round(vh * scale);
+            const x = Math.floor((MAX_W - dw) / 2);
+            const y = Math.floor((MAX_H - dh) / 2);
+            sendCtx.fillStyle = "#000";
+            sendCtx.fillRect(0, 0, MAX_W, MAX_H);
+            sendCtx.save();
+            sendCtx.setTransform(-1, 0, 0, 1, MAX_W, 0);
+            sendCtx.drawImage(cam, MAX_W - x - dw, y, dw, dh);
+            sendCtx.restore();
+        }
 
         async function startClientCamera() {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: false,
-                video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 30 }
+                }
             });
             cam.srcObject = stream;
             await cam.play();
             async function pushFrame() {
                 if (cam.readyState >= 2) {
-                    sendCtx.save();
-                    sendCtx.translate(640, 0);
-                    sendCtx.scale(-1, 1);
-                    sendCtx.drawImage(cam, 0, 0, 640, 360);
-                    sendCtx.restore();
-                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.7));
+                    drawMirrored();
+                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.92));
                     if (blob) {
                         const res = await fetch("/frame", {
                             method: "POST",

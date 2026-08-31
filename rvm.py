@@ -27,13 +27,15 @@ class RVMMatting:
         return [None, None, None, None]
 
     @torch.inference_mode()
-    def matting(self, frame_bgr: np.ndarray, rec=None):
+    def matting(self, frame_bgr: np.ndarray, rec=None, downsample=None):
         if rec is None:
             rec = [None, None, None, None]
+        if downsample is None:
+            downsample = DOWNSAMPLE
         rgb = frame_bgr[:, :, ::-1].copy()
         src = torch.from_numpy(rgb).float().permute(2, 0, 1).unsqueeze(0) / 255.0
         src = src.to(self.device)
-        fgr, pha, *rec = self.model(src, *rec, DOWNSAMPLE)
+        fgr, pha, *rec = self.model(src, *rec, float(downsample))
         fgr_np = fgr[0].permute(1, 2, 0).cpu().numpy()
         pha_np = pha[0, 0].cpu().numpy()
         return fgr_np, pha_np, rec

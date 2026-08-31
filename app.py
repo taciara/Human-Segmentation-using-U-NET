@@ -25,6 +25,7 @@ _state = {
     "frame": "fanta_halloween.png",
     "latest_jpeg": None,
     "latest_bgr": None,
+    "incoming": None,
     "last_photo": None,
 }
 
@@ -112,11 +113,6 @@ def compose(person_bgr, mask, background, frame_rgba):
 
 class CameraBooth:
     def __init__(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        if not self.cap.isOpened():
-            self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
         options = ImageSegmenterOptions(
             base_options=mp.tasks.BaseOptions(model_asset_path=str(MODEL_PATH)),
             running_mode=RunningMode.VIDEO,
@@ -140,12 +136,14 @@ class CameraBooth:
 
     def _loop(self):
         while self.running:
-            ok, frame = self.cap.read()
-            if not ok:
-                time.sleep(0.03)
+            with _lock:
+                frame = _state.get("incoming")
+                _state["incoming"] = None
+            if frame is None:
+                time.sleep(0.02)
                 continue
 
-            frame = cv2.flip(cv2.resize(frame, (WIDTH, HEIGHT)), 1)
+            frame = cv2.resize(frame, (WIDTH, HEIGHT))
             rgb = np.ascontiguousarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
             self._ts += 33
@@ -171,7 +169,6 @@ class CameraBooth:
 
     def stop(self):
         self.running = False
-        self.cap.release()
         self.segmenter.close()
 
 
@@ -239,6 +236,19 @@ def video():
             time.sleep(0.03)
 
     return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.post("/frame")
+def upload_frame():
+    data = request.get_data()
+    if not data:
+        return jsonify(ok=False), 400
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return jsonify(ok=False), 400
+    with _lock:
+        _state["incoming"] = img
+    return jsonify(ok=True)
 
 
 @app.post("/config")

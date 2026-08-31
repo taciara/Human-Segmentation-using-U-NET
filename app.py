@@ -22,7 +22,7 @@ app = Flask(__name__)
 _lock = threading.Lock()
 _state = {
     "background": "estudio.png",
-    "frame": "dourada.png",
+    "frame": "fanta_halloween.png",
     "latest_jpeg": None,
     "latest_bgr": None,
     "last_photo": None,
@@ -61,9 +61,31 @@ def overlay_rgba(base_bgr, overlay_bgra):
     return out.astype(np.uint8)
 
 
-def feather_mask(mask, ksize=21):
-    mask = cv2.GaussianBlur(mask, (ksize, ksize), 0)
-    return np.clip(mask, 0.0, 1.0)
+def refine_person_mask(person):
+    """Corta um pouco do halo, mas deixa a borda suave (não serrilhada)."""
+    person = np.clip(person.astype(np.float32), 0.0, 1.0)
+    person = np.clip((person - 0.12) / 0.78, 0.0, 1.0)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    hard = (person > 0.42).astype(np.uint8)
+    hard = cv2.erode(hard, kernel, iterations=1)
+    soft = cv2.GaussianBlur(hard.astype(np.float32), (17, 17), 0)
+    return np.clip(soft, 0.0, 1.0)
+
+
+def defringe(bgr, mask):
+    """Tira a franja clara nas bordas (resto da parede/luz do quarto)."""
+    m = np.squeeze(mask).astype(np.float32)
+    edge = ((m > 0.04) & (m < 0.88)).astype(np.float32)[:, :, None]
+    if float(edge.max()) == 0:
+        return bgr
+    inward = cv2.erode((m > 0.75).astype(np.uint8), np.ones((7, 7), np.uint8))
+    fill = cv2.GaussianBlur(bgr, (9, 9), 0).astype(np.float32)
+    interior = cv2.bitwise_and(bgr, bgr, mask=inward)
+    interior_blur = cv2.GaussianBlur(interior, (9, 9), 0).astype(np.float32)
+    use_interior = (inward > 0)[:, :, None].astype(np.float32)
+    replacement = interior_blur * use_interior + fill * (1.0 - use_interior)
+    out = bgr.astype(np.float32) * (1.0 - 0.38 * edge) + replacement * (0.38 * edge)
+    return np.clip(out, 0, 255).astype(np.uint8)
 
 
 def person_mask_from_category(category, size):
@@ -74,15 +96,16 @@ def person_mask_from_category(category, size):
     person = 1.0 - np.clip(mask, 0.0, 1.0)
     if person.shape[0] != size[1] or person.shape[1] != size[0]:
         person = cv2.resize(person, size, interpolation=cv2.INTER_LINEAR)
-    return feather_mask(person)
+    return refine_person_mask(person)
 
 
 def compose(person_bgr, mask, background, frame_rgba):
     m = np.squeeze(mask).astype(np.float32)
     if m.ndim != 2:
         m = m.reshape(person_bgr.shape[0], person_bgr.shape[1])
-    m = m[:, :, None]
-    scene = background.astype(np.float32) * (1.0 - m) + person_bgr.astype(np.float32) * m
+    person_bgr = defringe(person_bgr, m)
+    alpha = np.power(np.clip(m, 0.0, 1.0), 1.08)[:, :, None]
+    scene = background.astype(np.float32) * (1.0 - alpha) + person_bgr.astype(np.float32) * alpha
     scene = np.clip(scene, 0, 255).astype(np.uint8)
     return overlay_rgba(scene, frame_rgba)
 
@@ -162,6 +185,25 @@ def get_booth():
     return booth
 
 
+def frame_labels():
+    return {
+        "dourada.png": "Dourada",
+        "rosa.png": "Rosa",
+        "preta.png": "Preta",
+        "fanta_halloween.png": "Fanta Halloween",
+        "Fanta_panic.png": "Fanta Panic",
+    }
+
+
+def background_labels():
+    return {
+        "estudio.png": "Estudio",
+        "praia.png": "Praia",
+        "noite.png": "Noite",
+        "panic.png": "Pânico",
+    }
+
+
 @app.before_request
 def _boot_camera():
     get_booth()
@@ -175,6 +217,8 @@ def home():
         "index.html",
         backgrounds=backgrounds,
         frames=frames,
+        background_labels=background_labels(),
+        frame_labels=frame_labels(),
         current_bg=_state["background"],
         current_frame=_state["frame"],
     )

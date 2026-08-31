@@ -108,7 +108,7 @@
             <label for="bg">Cenário (atrás)</label>
             <select id="bg">
                 {% for name in backgrounds %}
-                <option value="{{ name }}" {% if name == current_bg %}selected{% endif %}>{{ name.replace('.png','') }}</option>
+                <option value="{{ name }}" {% if name == current_bg %}selected{% endif %}>{{ background_labels.get(name, name.replace('.png','')) }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -116,7 +116,7 @@
             <label for="fr">Moldura (frente)</label>
             <select id="fr">
                 {% for name in frames %}
-                <option value="{{ name }}" {% if name == current_frame %}selected{% endif %}>{{ name.replace('.png','') }}</option>
+                <option value="{{ name }}" {% if name == current_frame %}selected{% endif %}>{{ frame_labels.get(name, name.replace('.png','')) }}</option>
                 {% endfor %}
             </select>
         </div>

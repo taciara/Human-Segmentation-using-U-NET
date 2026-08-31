@@ -1,27 +1,151 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photobooth</title>
     <style>
-        .main-frame{
+        :root {
+            color-scheme: dark;
+            --bg: #120c18;
+            --card: #1e1528;
+            --accent: #e8b86d;
+            --text: #f4eef8;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            background: radial-gradient(circle at top, #3a2048, var(--bg));
+            color: var(--text);
+            min-height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            letter-spacing: 0.12em;
+            font-weight: 400;
+            margin: 1.2rem 0 0.3rem;
+        }
+        p.sub {
+            text-align: center;
+            opacity: 0.75;
+            margin: 0 0 1rem;
+            font-family: system-ui, sans-serif;
+            font-size: 0.95rem;
+        }
+        .stage {
             display: flex;
             justify-content: center;
-            align-items: center;
-            flex-direction: column;
+            padding: 0 1rem;
+        }
+        .preview {
+            width: min(1280px, 92vw);
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,.45);
+        }
+        .preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .controls {
+            max-width: 1100px;
+            margin: 1.2rem auto 2rem;
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 1fr 1fr auto;
+            padding: 0 1rem;
+            font-family: system-ui, sans-serif;
+        }
+        label { display: block; font-size: 0.8rem; opacity: 0.7; margin-bottom: 0.35rem; }
+        select, button {
+            width: 100%;
+            padding: 0.7rem 0.9rem;
+            border-radius: 8px;
+            border: 1px solid #5a4068;
+            background: var(--card);
+            color: var(--text);
+            font-size: 1rem;
+        }
+        button {
+            background: var(--accent);
+            color: #2a1608;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            align-self: end;
+            min-width: 180px;
+        }
+        button:active { transform: scale(0.98); }
+        .shot {
+            text-align: center;
+            font-family: system-ui, sans-serif;
+        }
+        .shot img {
+            max-width: 320px;
+            border-radius: 8px;
+            margin-top: 0.5rem;
+        }
+        @media (max-width: 800px) {
+            .controls { grid-template-columns: 1fr; }
         }
     </style>
-    <title>Home</title>
 </head>
 <body>
-    <div class="main-frame">
-        <h1>Human Segmentation</h1>
-        <div class="video-section">
-            <div>
-                <img src="{{ url_for('show_one') }}" alt="">
-                <img src="{{ url_for('show_two') }}" alt="">
-            </div>
+    <h1>PHOTOBOOTH</h1>
+    <p class="sub">Você no meio · cenário virtual atrás · moldura na frente</p>
+    <div class="stage">
+        <div class="preview">
+            <img src="{{ url_for('video') }}" alt="Prévia da webcam">
         </div>
     </div>
+    <div class="controls">
+        <div>
+            <label for="bg">Cenário (atrás)</label>
+            <select id="bg">
+                {% for name in backgrounds %}
+                <option value="{{ name }}" {% if name == current_bg %}selected{% endif %}>{{ name.replace('.png','') }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="fr">Moldura (frente)</label>
+            <select id="fr">
+                {% for name in frames %}
+                <option value="{{ name }}" {% if name == current_frame %}selected{% endif %}>{{ name.replace('.png','') }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button id="snap" type="button">Tirar foto</button>
+    </div>
+    <div class="shot" id="last"></div>
+    <script>
+        async function sendConfig() {
+            await fetch("/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    background: document.getElementById("bg").value,
+                    frame: document.getElementById("fr").value
+                })
+            });
+        }
+        document.getElementById("bg").addEventListener("change", sendConfig);
+        document.getElementById("fr").addEventListener("change", sendConfig);
+        document.getElementById("snap").addEventListener("click", async () => {
+            const res = await fetch("/capture", { method: "POST" });
+            const data = await res.json();
+            if (!data.ok) {
+                alert(data.error || "Falha ao capturar");
+                return;
+            }
+            document.getElementById("last").innerHTML =
+                "<p>Foto salva em photos/" + data.file + "</p><img src='" + data.url + "' alt='Última foto'>";
+        });
+    </script>
 </body>
 </html>

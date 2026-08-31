@@ -2,3 +2,5 @@ photos/
 __pycache__/
 .venv/
 *.pyc
+access.key
+

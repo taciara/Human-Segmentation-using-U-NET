@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import threading
 import time
@@ -13,21 +14,25 @@ from rvm import RVMMatting
 ROOT = Path(__file__).resolve().parent
 BG_DIR = ROOT / "assets" / "backgrounds"
 FRAME_DIR = ROOT / "assets" / "frames"
+OVERLAY_DIR = ROOT / "assets" / "overlays"
 PHOTOS_DIR = ROOT / "photos"
-WIDTH, HEIGHT = 1280, 720
+WIDTH, HEIGHT = 960, 540
 COOKIE_SID = "booth_sid"
 SESSION_TTL = 15 * 60
 ACCESS_KEY = os.environ.get("BOOTH_KEY", "").strip()
 
-PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+PHOTO_NAME = re.compile(r"^foto_\d{8}_\d{6}(_p)?\.jpg$")
+LOGO_PATH = ROOT / "static" / "img" / "logo.png"
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 
 _lock = threading.Lock()
 _sessions = {}
 _defaults = {
-    "background": "estudio.png",
-    "frame": "fanta_halloween.png",
+    "background": "bg_foto.png",
+    "frame": "",
 }
 
 
@@ -54,7 +59,7 @@ def load_frame(name: str):
     return cv2.resize(img, (WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
 
 
-def letterbox(img, tw=1280, th=720):
+def letterbox(img, tw=WIDTH, th=HEIGHT):
     h, w = img.shape[:2]
     scale = min(tw / w, th / h)
     nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
@@ -63,6 +68,44 @@ def letterbox(img, tw=1280, th=720):
     y, x = (th - nh) // 2, (tw - nw) // 2
     canvas[y : y + nh, x : x + nw] = resized
     return canvas
+
+
+def cover_crop(img, tw, th):
+    h, w = img.shape[:2]
+    scale = max(tw / max(1, w), th / max(1, h))
+    nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+    resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_AREA)
+    x = max(0, (nw - tw) // 2)
+    y = max(0, (nh - th) // 2)
+    return resized[y : y + th, x : x + tw]
+
+
+def make_polaroid(photo_bgr):
+    pad = 36
+    footer = 220
+    inner_w = 840
+    inner_h = int(inner_w * 5 / 4)
+    card_w = inner_w + pad * 2
+    card_h = pad + inner_h + footer
+    card = np.full((card_h, card_w, 3), 250, dtype=np.uint8)
+    crop = cover_crop(photo_bgr, inner_w, inner_h)
+    card[pad : pad + inner_h, pad : pad + inner_w] = crop
+    logo = cv2.imread(str(LOGO_PATH), cv2.IMREAD_UNCHANGED)
+    if logo is not None:
+        lw = int(inner_w * 0.58)
+        lh = max(1, int(logo.shape[0] * lw / max(1, logo.shape[1])))
+        logo_r = cv2.resize(logo, (lw, lh), interpolation=cv2.INTER_AREA)
+        canvas = np.zeros((card_h, card_w, 4), dtype=np.uint8)
+        lx = (card_w - lw) // 2
+        ly = pad + inner_h + (footer - lh) // 2
+        ly = max(0, min(card_h - lh, ly))
+        canvas[ly : ly + lh, lx : lx + lw] = logo_r
+        card = overlay_rgba(card, canvas)
+    return card
+
+
+def polaroid_name(name: str) -> str:
+    return name.replace(".jpg", "_p.jpg")
 
 
 def overlay_rgba(base_bgr, overlay_bgra):
@@ -74,12 +117,35 @@ def overlay_rgba(base_bgr, overlay_bgra):
     return out.astype(np.uint8)
 
 
-def compose_rvm(fgr_rgb, pha, background, frame_rgba):
+def place_overlay(overlay_bgra, tw, th, x_shift=0.06):
+    if overlay_bgra is None:
+        return None
+    canvas = np.zeros((th, tw, 4), dtype=np.uint8)
+    ch, cw = overlay_bgra.shape[:2]
+    scale = (th * 0.95) / max(1, ch)
+    nw, nh = max(1, int(cw * scale)), max(1, int(ch * scale))
+    resized = cv2.resize(overlay_bgra, (nw, nh), interpolation=cv2.INTER_AREA)
+    x = int((tw - nw) / 2 + tw * x_shift)
+    y = th - nh
+    x0, y0 = max(0, x), max(0, y)
+    x1, y1 = min(tw, x + nw), min(th, y + nh)
+    sx0, sy0 = x0 - x, y0 - y
+    canvas[y0:y1, x0:x1] = resized[sy0 : sy0 + (y1 - y0), sx0 : sx0 + (x1 - x0)]
+    return canvas
+
+
+def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None):
     """Usa o primeiro plano já limpo do RVM (sem halo da parede)."""
     pha = np.clip(pha.astype(np.float32), 0.0, 1.0)
     if pha.shape[:2] != background.shape[:2]:
         pha = cv2.resize(pha, (background.shape[1], background.shape[0]), interpolation=cv2.INTER_LINEAR)
         fgr_rgb = cv2.resize(fgr_rgb, (background.shape[1], background.shape[0]), interpolation=cv2.INTER_LINEAR)
+    scene_bg = background
+    if character is not None:
+        if character.shape[0] == background.shape[0] and character.shape[1] == background.shape[1]:
+            scene_bg = overlay_rgba(scene_bg, character)
+        else:
+            scene_bg = overlay_rgba(scene_bg, place_overlay(character, background.shape[1], background.shape[0]))
     a = pha[:, :, None]
     fgr_bgr = np.clip(fgr_rgb[..., ::-1], 0.0, 1.0)
     gray = (
@@ -88,7 +154,7 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba):
         + 0.299 * fgr_bgr[:, :, 2]
     )
     fgr_bgr = np.repeat(gray[:, :, None], 3, axis=2) * 255.0
-    scene = fgr_bgr * a + background.astype(np.float32) * (1.0 - a)
+    scene = fgr_bgr * a + scene_bg.astype(np.float32) * (1.0 - a)
     scene = np.clip(scene, 0, 255).astype(np.uint8)
     return overlay_rgba(scene, frame_rgba)
 
@@ -96,19 +162,22 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba):
 class CameraBooth:
     def __init__(self):
         self.rvm = RVMMatting()
-        self.infer_lock = threading.Lock()
+        self.infer_lock = threading.RLock()
+        self._busy = False
         self._bg_cache = {}
         self._frame_cache = {}
+        self._character = cv2.imread(str(OVERLAY_DIR / "personagem.png"), cv2.IMREAD_UNCHANGED)
+        self._character_placed = None
 
     def _assets(self, bg_name, frame_name):
         if bg_name not in self._bg_cache:
             self._bg_cache[bg_name] = load_bg(bg_name)
         if frame_name not in self._frame_cache:
-            self._frame_cache[frame_name] = load_frame(frame_name)
+            self._frame_cache[frame_name] = load_frame(frame_name) if frame_name else None
         return self._bg_cache[bg_name], self._frame_cache[frame_name]
 
     def process(self, frame, rec, bg_name, frame_name):
-        frame = letterbox(frame, 1280, 720)
+        frame = letterbox(frame, WIDTH, HEIGHT)
         try:
             with self.infer_lock:
                 fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.25)
@@ -122,7 +191,9 @@ class CameraBooth:
             background = cv2.resize(background, (w, h), interpolation=cv2.INTER_AREA)
         if moldura is not None and (moldura.shape[1] != w or moldura.shape[0] != h):
             moldura = cv2.resize(moldura, (w, h), interpolation=cv2.INTER_AREA)
-        composed = compose_rvm(fgr, pha, background, moldura)
+        if self._character_placed is None or self._character_placed.shape[1] != w or self._character_placed.shape[0] != h:
+            self._character_placed = place_overlay(self._character, w, h)
+        composed = compose_rvm(fgr, pha, background, moldura, self._character_placed)
         ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         jpeg = buf.tobytes() if ok_jpg else None
         return composed, jpeg, rec
@@ -230,7 +301,7 @@ def _privacy_headers(resp):
 
 @app.before_request
 def _gate():
-    if request.endpoint in ("photo_file", "static"):
+    if request.endpoint in ("photo_file", "static", "share_page"):
         return None
     if not _authorized():
         return make_response("Link privado. Peça o endereço completo com chave de acesso.", 401)
@@ -271,6 +342,12 @@ def upload_frame():
         rec = sess["rec"]
         bg_name = sess["background"]
         frame_name = sess["frame"]
+        cached = sess.get("last_jpeg")
+    if not booth.infer_lock.acquire(blocking=False):
+        if cached:
+            return Response(cached, mimetype="image/jpeg")
+        return jsonify(ok=False), 503
+    booth._busy = True
     try:
         composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name)
     except Exception:
@@ -278,6 +355,9 @@ def upload_frame():
             rec = [None, None, None, None]
             _sessions[g.sid]["rec"] = rec
         composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name)
+    finally:
+        booth._busy = False
+        booth.infer_lock.release()
     if jpeg is None:
         return jsonify(ok=False), 500
     with _lock:
@@ -310,11 +390,40 @@ def capture():
             return jsonify(ok=False, error="Sem imagem da webcam"), 503
         name = time.strftime("foto_%Y%m%d_%H%M%S.jpg")
         cv2.imwrite(str(PHOTOS_DIR / name), image)
-    return jsonify(ok=True, file=name, url=url_for("photo_file", name=name))
+        card = make_polaroid(image)
+        cv2.imwrite(str(PHOTOS_DIR / polaroid_name(name)), card)
+    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+    host = request.headers.get("X-Forwarded-Host", request.host)
+    page_url = f"{proto}://{host}/p/{name}"
+    return jsonify(
+        ok=True,
+        file=name,
+        url=url_for("photo_file", name=name),
+        share_url=page_url,
+    )
+
+
+@app.get("/p/<name>")
+def share_page(name):
+    if not PHOTO_NAME.match(name) or not (PHOTOS_DIR / name).exists():
+        return make_response("Foto não encontrada.", 404)
+    card = polaroid_name(name)
+    if not (PHOTOS_DIR / card).exists():
+        src = cv2.imread(str(PHOTOS_DIR / name))
+        if src is None:
+            return make_response("Foto não encontrada.", 404)
+        cv2.imwrite(str(PHOTOS_DIR / card), make_polaroid(src))
+    return render_template(
+        "share.html",
+        photo_url=url_for("photo_file", name=name),
+        card_url=url_for("photo_file", name=card),
+    )
 
 
 @app.get("/photos/<name>")
 def photo_file(name):
+    if not PHOTO_NAME.match(name):
+        return make_response("Arquivo inválido.", 404)
     return send_from_directory(PHOTOS_DIR, name)
 
 

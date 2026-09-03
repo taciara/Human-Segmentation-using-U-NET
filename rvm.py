@@ -4,7 +4,9 @@ from __future__ import annotations
 import torch
 import numpy as np
 
-DOWNSAMPLE = 0.375
+DOWNSAMPLE = 0.25
+torch.set_num_threads(2)
+torch.set_num_interop_threads(1)
 
 
 def load_rvm():

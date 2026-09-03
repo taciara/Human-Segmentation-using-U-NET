@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fanta Photobooth</title>
+    <style>
+        @font-face {
+            font-family: "FantaSans";
+            src: url("{{ url_for('static', filename='fonts/FantaSans-Bold.otf') }}") format("opentype");
+            font-weight: 700;
+        }
+        @font-face {
+            font-family: "FantaPop";
+            src: url("{{ url_for('static', filename='fonts/FantaPop-Condensed.otf') }}") format("opentype");
+            font-weight: 700;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            font-family: "FantaSans", sans-serif;
+            background: #000;
+            color: #fff;
+        }
+        .screen {
+            position: relative;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+        .top-logo {
+            position: relative;
+            z-index: 3;
+            width: 190px;
+            margin-top: 0.6vh;
+        }
+        .top-logo img { width: 100%; display: block; }
+        .polaroid-stage {
+            position: relative;
+            z-index: 2;
+            width: min(72vw, 380px);
+            margin-top: 0.6vh;
+        }
+        .polaroid {
+            position: relative;
+            background: #fff;
+            background-image: linear-gradient(180deg, #fff 0%, #f3efe8 100%);
+            padding: 14px 14px 0;
+            box-shadow: 0 22px 40px rgba(0,0,0,.5);
+            border: 1px solid #ece8e1;
+        }
+        .viewfinder {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 5;
+            background: #111;
+            overflow: hidden;
+        }
+        .viewfinder > img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+        .polaroid-footer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 5.6rem;
+            padding: 0.35rem 0.6rem;
+        }
+        .logo-in-footer {
+            width: 58%;
+            object-fit: contain;
+            display: block;
+            pointer-events: none;
+            transform: translateY(3rem);
+            margin: -2rem auto -3rem;
+        }
+        .btn-share {
+            position: relative;
+            z-index: 8;
+            border: 0;
+            cursor: pointer;
+            background: linear-gradient(#ff8a14, #ff5a00);
+            color: #111;
+            font-family: "FantaPop", "FantaSans", sans-serif;
+            font-size: clamp(1rem, 4.2vw, 1.45rem);
+            letter-spacing: .02em;
+            padding: .7rem 1.8rem;
+            border-radius: 999px;
+            min-width: min(68%, 280px);
+            box-shadow: 0 8px 0 #c43e00;
+            margin-top: 5.1rem;
+        }
+        .drip-wrap { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+        .drip-bottom {
+            position: absolute;
+            left: 0; right: 0; bottom: 0; height: 34%;
+            background: url("{{ url_for('static', filename='img/bg_orange.png') }}") center / cover no-repeat;
+        }
+        .drip-bottom svg {
+            position: absolute;
+            left: 0; right: 0; top: -48px;
+            width: 100%; height: 56px;
+        }
+        .note {
+            position: relative;
+            z-index: 3;
+            margin-top: 1rem;
+            font-size: .8rem;
+            opacity: .8;
+            text-align: center;
+            padding: 0 1rem 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <section class="screen">
+        <div class="drip-wrap">
+            <div class="drip-bottom">
+                <svg viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true">
+                    <path fill="#000" d="M0 0h400v20C360 20 350 56 330 56c-28 0-32-36-58-36S240 56 214 56s-30-36-58-36-34 36-62 36S54 20 0 20V0z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="top-logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta"></div>
+        <div class="polaroid-stage">
+            <div class="polaroid">
+                <div class="viewfinder">
+                    <img src="{{ photo_url }}" alt="Sua foto">
+                </div>
+                <div class="polaroid-footer">
+                    <img class="logo-in-footer" src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta">
+                </div>
+            </div>
+        </div>
+        <button class="btn-share" id="share" type="button">COMPARTILHAR</button>
+        <p class="note" id="msg" hidden></p>
+    </section>
+    <script>
+        const cardUrl = {{ card_url|tojson }};
+        document.getElementById("share").addEventListener("click", async () => {
+            const msg = document.getElementById("msg");
+            try {
+                const res = await fetch(cardUrl, { credentials: "same-origin" });
+                const blob = await res.blob();
+                const file = new File([blob], "fanta-photobooth.jpg", { type: "image/jpeg" });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: "Fanta" });
+                    return;
+                }
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "fanta-photobooth.jpg";
+                a.click();
+            } catch (err) {
+                if (err && err.name === "AbortError") return;
+                msg.hidden = false;
+                msg.textContent = "Não deu para abrir o compartilhar deste aparelho. A foto foi baixada.";
+            }
+        });
+    </script>
+</body>
+</html>

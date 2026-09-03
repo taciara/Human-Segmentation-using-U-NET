@@ -27,6 +27,10 @@ LOGO_PATH = ROOT / "static" / "img" / "logo.png"
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.jinja_env.auto_reload = True
+SEO_TITLE = "Fanta Halloween | Photobooth do Pânico"
+SEO_DESCRIPTION = "A abóbora pediu um gole e o pânico atendeu. Entre na Polaroid da Fanta Halloween, recorte o susto e leve o Ghostface nas redes."
+SEO_OG_DESCRIPTION = "A abóbora pediu um gole e o pânico atendeu. Polaroid envelhecida, recorte em preto e branco e um susto laranja pra compartilhar."
+SEO_TWITTER_DESCRIPTION = "A abóbora pediu um gole e o pânico atendeu. Tire sua foto na Polaroid da Fanta Halloween."
 
 _lock = threading.Lock()
 _sessions = {}
@@ -34,6 +38,27 @@ _defaults = {
     "background": "bg_foto.png",
     "frame": "",
 }
+
+
+def public_origin():
+    host = (request.headers.get("X-Forwarded-Host") or request.host or "").split(",")[0].strip()
+    proto = (request.headers.get("X-Forwarded-Proto") or request.scheme or "http").split(",")[0].strip()
+    if host.endswith("seuprojeto.online"):
+        proto = "https"
+    return f"{proto}://{host}"
+
+
+@app.context_processor
+def inject_seo():
+    origin = public_origin()
+    return {
+        "seo_title": SEO_TITLE,
+        "seo_description": SEO_DESCRIPTION,
+        "seo_og_description": SEO_OG_DESCRIPTION,
+        "seo_twitter_description": SEO_TWITTER_DESCRIPTION,
+        "og_image": origin + "/static/img/logo.png",
+        "og_url": origin + request.path,
+    }
 
 
 def list_png(folder: Path):
@@ -80,6 +105,30 @@ def cover_crop(img, tw, th):
     return resized[y : y + th, x : x + tw]
 
 
+def age_paper(card, pad, inner_w, inner_h):
+    h, w = card.shape[:2]
+    paper = card.astype(np.int16)
+    rng = np.random.default_rng(7)
+    paper += rng.integers(-16, 17, paper.shape, dtype=np.int16)
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    bottom = np.clip((yy - (pad + inner_h - 8)) / max(1, h - pad - inner_h), 0, 1)
+    edge = np.maximum.reduce(
+        [
+            np.clip(1 - xx / 28, 0, 1),
+            np.clip(1 - (w - 1 - xx) / 28, 0, 1),
+            np.clip(1 - yy / 22, 0, 1),
+            bottom * 0.85,
+        ]
+    )[:, :, None]
+    dirt = np.array([38, 48, 62], dtype=np.float32)
+    paper = paper * (1 - edge * 0.22) + dirt * edge * 0.22
+    inner = np.ones((h, w), dtype=bool)
+    inner[pad : pad + inner_h, pad : pad + inner_w] = False
+    out = card.copy()
+    out[inner] = np.clip(paper, 0, 255).astype(np.uint8)[inner]
+    return out
+
+
 def make_polaroid(photo_bgr):
     pad = 36
     footer = 220
@@ -87,9 +136,10 @@ def make_polaroid(photo_bgr):
     inner_h = int(inner_w * 5 / 4)
     card_w = inner_w + pad * 2
     card_h = pad + inner_h + footer
-    card = np.full((card_h, card_w, 3), 250, dtype=np.uint8)
+    card = np.full((card_h, card_w, 3), (210, 223, 230), dtype=np.uint8)
     crop = cover_crop(photo_bgr, inner_w, inner_h)
     card[pad : pad + inner_h, pad : pad + inner_w] = crop
+    card = age_paper(card, pad, inner_w, inner_h)
     logo = cv2.imread(str(LOGO_PATH), cv2.IMREAD_UNCHANGED)
     if logo is not None:
         lw = int(inner_w * 0.58)
@@ -392,9 +442,7 @@ def capture():
         cv2.imwrite(str(PHOTOS_DIR / name), image)
         card = make_polaroid(image)
         cv2.imwrite(str(PHOTOS_DIR / polaroid_name(name)), card)
-    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
-    host = request.headers.get("X-Forwarded-Host", request.host)
-    page_url = f"{proto}://{host}/p/{name}"
+    page_url = f"{public_origin()}/p/{name}"
     return jsonify(
         ok=True,
         file=name,

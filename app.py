@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 BG_DIR = ROOT / "assets" / "backgrounds"
 FRAME_DIR = ROOT / "assets" / "frames"
 PHOTOS_DIR = ROOT / "photos"
-WIDTH, HEIGHT = 1920, 1080
+WIDTH, HEIGHT = 1280, 720
 COOKIE_SID = "booth_sid"
 SESSION_TTL = 15 * 60
 ACCESS_KEY = os.environ.get("BOOTH_KEY", "").strip()
@@ -54,7 +54,7 @@ def load_frame(name: str):
     return cv2.resize(img, (WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
 
 
-def letterbox(img, tw=1920, th=1080):
+def letterbox(img, tw=1280, th=720):
     h, w = img.shape[:2]
     scale = min(tw / w, th / h)
     nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
@@ -108,7 +108,7 @@ class CameraBooth:
         return self._bg_cache[bg_name], self._frame_cache[frame_name]
 
     def process(self, frame, rec, bg_name, frame_name):
-        frame = letterbox(frame, 1920, 1080)
+        frame = letterbox(frame, 1280, 720)
         try:
             with self.infer_lock:
                 fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.25)
@@ -123,7 +123,7 @@ class CameraBooth:
         if moldura is not None and (moldura.shape[1] != w or moldura.shape[0] != h):
             moldura = cv2.resize(moldura, (w, h), interpolation=cv2.INTER_AREA)
         composed = compose_rvm(fgr, pha, background, moldura)
-        ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+        ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         jpeg = buf.tobytes() if ok_jpg else None
         return composed, jpeg, rec
 

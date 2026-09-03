@@ -189,8 +189,8 @@
         const preview = document.getElementById("preview");
         const previewBox = document.getElementById("previewBox");
         const sendCanvas = document.createElement("canvas");
-        const MAX_W = 1920;
-        const MAX_H = 1080;
+        const MAX_W = 1280;
+        const MAX_H = 720;
         const sendCtx = sendCanvas.getContext("2d", { alpha: false });
         sendCtx.imageSmoothingEnabled = true;
         sendCtx.imageSmoothingQuality = "high";
@@ -221,17 +221,23 @@
                 audio: false,
                 video: {
                     facingMode: "user",
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    frameRate: { ideal: 30 }
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 24 }
                 }
             });
             cam.srcObject = stream;
             await cam.play();
+            let inFlight = false;
             async function pushFrame() {
-                if (cam.readyState >= 2) {
+                if (inFlight || cam.readyState < 2) {
+                    requestAnimationFrame(pushFrame);
+                    return;
+                }
+                inFlight = true;
+                try {
                     drawMirrored();
-                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.92));
+                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.72));
                     if (blob) {
                         const res = await fetch("/frame", {
                             method: "POST",
@@ -249,8 +255,10 @@
                             lastBlobUrl = url;
                         }
                     }
+                } finally {
+                    inFlight = false;
+                    requestAnimationFrame(pushFrame);
                 }
-                setTimeout(pushFrame, 80);
             }
             pushFrame();
         }

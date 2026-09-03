@@ -81,7 +81,13 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba):
         pha = cv2.resize(pha, (background.shape[1], background.shape[0]), interpolation=cv2.INTER_LINEAR)
         fgr_rgb = cv2.resize(fgr_rgb, (background.shape[1], background.shape[0]), interpolation=cv2.INTER_LINEAR)
     a = pha[:, :, None]
-    fgr_bgr = np.clip(fgr_rgb[..., ::-1], 0.0, 1.0) * 255.0
+    fgr_bgr = np.clip(fgr_rgb[..., ::-1], 0.0, 1.0)
+    gray = (
+        0.114 * fgr_bgr[:, :, 0]
+        + 0.587 * fgr_bgr[:, :, 1]
+        + 0.299 * fgr_bgr[:, :, 2]
+    )
+    fgr_bgr = np.repeat(gray[:, :, None], 3, axis=2) * 255.0
     scene = fgr_bgr * a + background.astype(np.float32) * (1.0 - a)
     scene = np.clip(scene, 0, 255).astype(np.uint8)
     return overlay_rgba(scene, frame_rgba)

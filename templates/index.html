@@ -156,6 +156,20 @@
             justify-content: center;
         }
         .has-feed .loader { display: none; }
+        html.apk-no-font body {
+            font-family: system-ui, sans-serif !important;
+        }
+        body.apk-usb #cam { display: none !important; }
+        body.apk-usb .loader {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            color: rgba(255,255,255,.85);
+            font-size: .85rem;
+            text-align: center;
+            padding: 1rem;
+        }
+        body.apk-usb.has-feed .loader { display: none; }
         .spinner {
             width: 46px;
             height: 46px;
@@ -408,6 +422,21 @@
             box-shadow: 0 4px 0 #c43e00;
         }
         #result .cam-switch, #ready .cam-switch { display: none; }
+        .usb-note {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 60;
+            background: #1a3d8f;
+            color: #fff;
+            font-family: "FantaSans", sans-serif;
+            font-size: .85rem;
+            line-height: 1.3;
+            padding: .7rem .9rem;
+            border-radius: 12px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -416,13 +445,17 @@
             <div class="drip-bottom"></div>
         </div>
         <button class="cam-switch" id="camSwitch" type="button">Trocar câmera</button>
+        <div class="usb-note" id="usbNote">No Chrome a tablet usa a câmera dela. A webcam USB (EMEET) só funciona no app Filtro Fanta.</div>
         <div class="top-logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta"></div>
         <div class="polaroid-stage">
             <div class="polaroid">
                 <div class="viewfinder" id="previewBox">
                     <video id="cam" playsinline autoplay muted></video>
                     <img id="preview" alt="" hidden>
-                    <div class="loader" aria-hidden="true"><div class="spinner"></div></div>
+                    <div class="loader" aria-hidden="true">
+                        <div class="spinner"></div>
+                        <span id="usbWait">Preparando câmera…</span>
+                    </div>
                     <div class="countdown" id="count"><span>3</span></div>
                 </div>
                 <div class="polaroid-footer">
@@ -555,25 +588,28 @@
         });
 
         async function takePhoto() {
-            const live = document.getElementById("preview");
-            if (live && live.src) {
-                frozenShotUrl = live.src;
-                lastBlobUrl = null;
-                document.getElementById("shotImg").src = frozenShotUrl;
-            }
             shareBtn.disabled = true;
-            showScreen(resultScreen);
-            const res = await fetch("/capture", { method: "POST", credentials: "same-origin" });
-            const data = await res.json();
-            if (!data.ok) {
-                alert(data.error || "Falha ao capturar");
+            try {
+                const res = await fetch("/capture", { method: "POST", credentials: "same-origin" });
+                const data = await res.json();
+                if (!data.ok) {
+                    alert(data.error || "Falha ao capturar");
+                    snap.disabled = false;
+                    showScreen(captureScreen);
+                    return;
+                }
+                const shot = document.getElementById("shotImg");
+                shot.src = data.url;
+                frozenShotUrl = data.url;
+                pendingShareUrl = data.share_url || (location.origin + data.url);
+                startQr(pendingShareUrl);
+                showScreen(resultScreen);
+                setTimeout(() => { shareBtn.disabled = false; }, 400);
+            } catch (err) {
+                alert("Falha ao capturar");
                 snap.disabled = false;
                 showScreen(captureScreen);
-                return;
             }
-            pendingShareUrl = data.share_url || (location.origin + data.url);
-            startQr(pendingShareUrl);
-            setTimeout(() => { shareBtn.disabled = false; }, 700);
         }
 
         snap.addEventListener("click", async (ev) => {
@@ -783,9 +819,94 @@
             }
             pushFrame();
         }
-        startClientCamera().catch((err) => {
-            alert("Permita a câmera neste aparelho: " + (err.message || err));
-        });
+
+        let usbBridgeOn = false;
+        function startUsbBridge() {
+            if (usbBridgeOn) return;
+            usbBridgeOn = true;
+            document.documentElement.classList.add("apk-no-font");
+            document.body.classList.add("apk-usb");
+            if (cam) {
+                cam.style.display = "none";
+                cam.style.visibility = "hidden";
+                cam.removeAttribute("src");
+                if (cam.srcObject) {
+                    cam.srcObject.getTracks().forEach((t) => t.stop());
+                    cam.srcObject = null;
+                }
+            }
+            const camSwitch = document.getElementById("camSwitch");
+            if (camSwitch) camSwitch.style.display = "none";
+            const usbWait = document.getElementById("usbWait");
+            let inFlight = false;
+            let emptyFrames = 0;
+            async function pushFrame() {
+                if (holdLive || document.hidden || inFlight) {
+                    setTimeout(pushFrame, 200);
+                    return;
+                }
+                inFlight = true;
+                try {
+                    const b64 = window.AndroidBooth && window.AndroidBooth.latestJpeg();
+                    if (!b64) {
+                        emptyFrames++;
+                        if (usbWait) {
+                            if (emptyFrames <= 8) {
+                                usbWait.textContent = "Permita USB: OK → escolha Filtro Fanta → Sempre";
+                            } else if (emptyFrames > 40) {
+                                usbWait.textContent = "Câmera USB não respondeu. Desinstale o USB Camera Viewer, reconecte a EMEET.";
+                            } else {
+                                usbWait.textContent = "Aguardando câmera USB…";
+                            }
+                        }
+                    } else if (usbWait) {
+                        usbWait.textContent = "Aplicando filtro…";
+                    }
+                    if (b64) {
+                        const bin = atob(b64);
+                        const arr = new Uint8Array(bin.length);
+                        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                        const blob = new Blob([arr], { type: "image/jpeg" });
+                        const res = await fetch("/frame", {
+                            method: "POST",
+                            body: blob,
+                            credentials: "same-origin"
+                        });
+                        if (res.ok && res.headers.get("content-type") && res.headers.get("content-type").includes("image/jpeg")) {
+                            const out = await res.blob();
+                            const url = URL.createObjectURL(out);
+                            preview.src = url;
+                            preview.hidden = false;
+                            preview.classList.add("is-on");
+                            previewBox.classList.add("has-feed");
+                            document.body.classList.add("has-feed");
+                            if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+                            lastBlobUrl = url;
+                        }
+                    }
+                } finally {
+                    inFlight = false;
+                    setTimeout(pushFrame, 150);
+                }
+            }
+            pushFrame();
+        }
+
+        window.startUsbBridge = startUsbBridge;
+        function bootCam() {
+            if (window.AndroidBooth) {
+                startUsbBridge();
+                return;
+            }
+            if (/Android/i.test(navigator.userAgent)) {
+                const note = document.getElementById("usbNote");
+                if (note) note.style.display = "block";
+            }
+            startClientCamera().catch((err) => {
+                alert("Permita a câmera neste aparelho: " + (err.message || err));
+            });
+        }
+        setTimeout(bootCam, 400);
     </script>
 </body>
 </html>

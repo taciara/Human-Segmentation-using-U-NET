@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.usb.UsbManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Rect
@@ -42,12 +43,16 @@ import com.serenegiant.usb.UVCParam
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private val latestJpeg = AtomicReference("")
     private val skip = AtomicInteger(0)
+    private val encodeBusy = AtomicBoolean(false)
+    private val frameExecutor = Executors.newSingleThreadExecutor()
     private var cameraHelper: ICameraHelper? = null
     private var usbStarted = false
     private var previewReady = false
@@ -477,13 +482,29 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         if (n < 100) return
         val logged = frameLog.incrementAndGet()
         if (logged == 1 || logged % 120 == 0) Log.i(TAG, "frame bytes=$n")
-        val stride = if (previewW > 1280) 12 else 3
-        if (skip.incrementAndGet() % stride != 0) {
+        // A callback nativa da câmera (Thread-3) chama onFrame() muitas vezes por
+        // segundo. Se processarmos (subsample+JPEG+Base64) na própria callback,
+        // qualquer lentidão bloqueia a entrega dos PRÓXIMOS frames pela lib nativa
+        // (foi isso que travou o preview: um frame de 8MP demorando >15s dentro da
+        // callback). Copiamos o buffer rápido e devolvemos o controle imediatamente;
+        // o trabalho pesado roda numa thread de background dedicada, descartando o
+        // frame se a anterior ainda não terminou (não enfileira trabalho atrasado).
+        if (encodeBusy.getAndSet(true)) {
             frame.position(frame.limit())
             return
         }
         val data = ByteArray(n)
         frame.get(data)
+        frameExecutor.execute {
+            try {
+                processFrame(data, n, logged)
+            } finally {
+                encodeBusy.set(false)
+            }
+        }
+    }
+
+    private fun processFrame(data: ByteArray, n: Int, logged: Int) {
         if (data[0] == 0xFF.toByte() && data[1] == 0xD8.toByte()) {
             latestJpeg.set(Base64.encodeToString(data, Base64.NO_WRAP))
             return
@@ -499,17 +520,42 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             }
         }
         try {
-            val out = ByteArrayOutputStream()
-            if (w > 1280 || h > 720) {
-                val yuv = YuvImage(data, ImageFormat.NV21, w, h, null)
-                if (!yuv.compressToJpeg(Rect(0, 0, w, h), 35, out)) return
-            } else {
-                val yuv = YuvImage(data, ImageFormat.NV21, w, h, null)
-                val q = if (w <= 640) 55 else 45
-                if (!yuv.compressToJpeg(Rect(0, 0, w, h), q, out)) return
+            // A câmera insiste em abrir na resolução nativa (3840x2160) mesmo
+            // pedindo 320x240/640x480 no openCamera(). Um subsample manual do
+            // buffer NV21 (bit twiddling no plano UV) causava artefatos de cor por
+            // erro de alinhamento do chroma 4:2:0 — trocado por APIs nativas do
+            // Android (compress + decode com inSampleSize), que são confiáveis e,
+            // rodando fora da hot path da câmera (thread dedicada), rápidas o
+            // suficiente mesmo na imagem cheia.
+            val t0 = System.currentTimeMillis()
+            val rawOut = ByteArrayOutputStream()
+            val yuv = YuvImage(data, ImageFormat.NV21, w, h, null)
+            if (!yuv.compressToJpeg(Rect(0, 0, w, h), 55, rawOut)) return
+            val rawBytes = rawOut.toByteArray()
+
+            var finalBytes = rawBytes
+            if (w > 800 || h > 800) {
+                val targetLong = 640
+                var sampleSize = 1
+                while ((maxOf(w, h) / sampleSize) > targetLong * 2) sampleSize *= 2
+                val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                val bmp = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, opts)
+                if (bmp != null) {
+                    val scale = targetLong.toFloat() / maxOf(bmp.width, bmp.height)
+                    val scaled = if (scale < 1f) {
+                        Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
+                    } else bmp
+                    val finalOut = ByteArrayOutputStream()
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 60, finalOut)
+                    finalBytes = finalOut.toByteArray()
+                    if (scaled !== bmp) scaled.recycle()
+                    bmp.recycle()
+                }
             }
-            if (out.size() > 400) {
-                val jpegBytes = out.toByteArray()
+            val tookMs = System.currentTimeMillis() - t0
+            if (logged <= 10 || logged % 60 == 0) Log.i(TAG, "encode ${w}x${h}->${finalBytes.size}b took ${tookMs}ms")
+            run {
+                val jpegBytes = finalBytes
                 latestJpeg.set(Base64.encodeToString(jpegBytes, Base64.NO_WRAP))
                 if (DEBUG_SAVE_FRAMES && (logged == 1 || logged % 200 == 0)) {
                     try {
@@ -522,8 +568,9 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 }
                 if (!bridgeFromSnap && pageReady) {
                     bridgeFromSnap = true
-                    // onFrame() roda em thread nativa (Thread-3), não na main thread —
-                    // WebView exige que evaluateJavascript() seja chamado na main thread.
+                    // processFrame() roda numa thread de background, não na main
+                    // thread — WebView exige que evaluateJavascript() seja chamado
+                    // na main thread.
                     mainHandler.post {
                         web.evaluateJavascript(
                             "try{if(window.startUsbBridge){window.startUsbBridge();}}catch(e){}",
@@ -548,6 +595,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     override fun onDestroy() {
         mainHandler.removeCallbacks(snapshotLoop)
         mainHandler.removeCallbacksAndMessages(null)
+        try { frameExecutor.shutdownNow() } catch (_: Exception) {}
         try { cameraHelper?.release() } catch (_: Exception) {}
         try { previewSurface?.release() } catch (_: Exception) {}
         previewSurface = null

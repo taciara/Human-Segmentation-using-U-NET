@@ -853,14 +853,19 @@
                         if (usbWait) {
                             if (emptyFrames <= 8) {
                                 usbWait.textContent = "Permita USB: OK → escolha Filtro Fanta → Sempre";
-                            } else if (emptyFrames > 40) {
+                            } else if (emptyFrames > 120) {
+                                // ~20s+ de poll sem nenhum frame: aí sim é falha real.
                                 usbWait.textContent = "Câmera USB não respondeu. Desinstale o USB Camera Viewer, reconecte a EMEET.";
                             } else {
+                                // Warm-up normal da câmera costuma levar 6-10s.
                                 usbWait.textContent = "Aguardando câmera USB…";
                             }
                         }
-                    } else if (usbWait) {
-                        usbWait.textContent = "Aplicando filtro…";
+                    } else {
+                        // Frame real chegou: zera o contador para não deixar a
+                        // mensagem de erro "grudada" numa falha temporária isolada.
+                        emptyFrames = 0;
+                        if (usbWait) usbWait.textContent = "Aplicando filtro…";
                     }
                     if (b64) {
                         const bin = atob(b64);

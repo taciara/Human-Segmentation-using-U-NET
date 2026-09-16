@@ -363,9 +363,16 @@ def _authorized():
 
 @app.after_request
 def _privacy_headers(resp):
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private, max-age=0"
-    resp.headers["Expires"] = "0"
-    resp.headers["Pragma"] = "no-cache"
+    # Assets estáticos (fontes, imagens de fundo) não mudam entre deploys e são
+    # pesados (~1MB no total) — sem cache, o WebView do APK rebaixava tudo a cada
+    # reload da página, mesmo na mesma sessão, atrasando o carregamento inicial
+    # (onPageFinished nunca disparava a tempo em Wi-Fi mais lenta de evento).
+    if request.path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+    else:
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private, max-age=0"
+        resp.headers["Expires"] = "0"
+        resp.headers["Pragma"] = "no-cache"
     sid = getattr(g, "sid", None)
     if sid:
         secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"

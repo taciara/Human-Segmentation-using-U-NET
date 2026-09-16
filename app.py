@@ -16,7 +16,9 @@ BG_DIR = ROOT / "assets" / "backgrounds"
 FRAME_DIR = ROOT / "assets" / "frames"
 OVERLAY_DIR = ROOT / "assets" / "overlays"
 PHOTOS_DIR = ROOT / "photos"
-WIDTH, HEIGHT = 960, 540
+LAND_W, LAND_H = 720, 405
+PORT_W, PORT_H = 480, 600
+WIDTH, HEIGHT = LAND_W, LAND_H
 COOKIE_SID = "booth_sid"
 SESSION_TTL = 15 * 60
 ACCESS_KEY = os.environ.get("BOOTH_KEY", "").strip()
@@ -67,21 +69,32 @@ def list_png(folder: Path):
     return sorted(p.name for p in folder.glob("*.png"))
 
 
-def load_bg(name: str):
+def canvas_size(img):
+    h, w = img.shape[:2]
+    if h >= w:
+        return PORT_W, PORT_H
+    return LAND_W, LAND_H
+
+
+def load_bg(name: str, tw=None, th=None):
+    tw = LAND_W if tw is None else tw
+    th = LAND_H if th is None else th
     path = BG_DIR / name
     img = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if img is None:
-        img = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
+        img = np.zeros((th, tw, 3), dtype=np.uint8)
         img[:] = (90, 40, 120)
-    return cv2.resize(img, (WIDTH, HEIGHT))
+    return cv2.resize(img, (tw, th))
 
 
-def load_frame(name: str):
+def load_frame(name: str, tw=None, th=None):
+    tw = LAND_W if tw is None else tw
+    th = LAND_H if th is None else th
     path = FRAME_DIR / name
     img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
     if img is None:
         return None
-    return cv2.resize(img, (WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
+    return cv2.resize(img, (tw, th), interpolation=cv2.INTER_AREA)
 
 
 def letterbox(img, tw=WIDTH, th=HEIGHT):
@@ -184,9 +197,21 @@ def place_overlay(overlay_bgra, tw, th, x_shift=0.06):
     return canvas
 
 
+def refine_alpha(pha):
+    pha = np.clip(pha.astype(np.float32), 0.0, 1.0)
+    pha[pha < 0.05] = 0.0
+    u8 = (pha * 255).astype(np.uint8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    u8 = cv2.morphologyEx(u8, cv2.MORPH_CLOSE, kernel, iterations=1)
+    u8 = cv2.GaussianBlur(u8, (5, 5), 0)
+    pha = u8.astype(np.float32) / 255.0
+    pha = np.clip((pha - 0.08) / 0.84, 0.0, 1.0)
+    return pha
+
+
 def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None):
     """Usa o primeiro plano já limpo do RVM (sem halo da parede)."""
-    pha = np.clip(pha.astype(np.float32), 0.0, 1.0)
+    pha = refine_alpha(pha)
     if pha.shape[:2] != background.shape[:2]:
         pha = cv2.resize(pha, (background.shape[1], background.shape[0]), interpolation=cv2.INTER_LINEAR)
         fgr_rgb = cv2.resize(fgr_rgb, (background.shape[1], background.shape[0]), interpolation=cv2.INTER_LINEAR)
@@ -218,33 +243,41 @@ class CameraBooth:
         self._frame_cache = {}
         self._character = cv2.imread(str(OVERLAY_DIR / "personagem.png"), cv2.IMREAD_UNCHANGED)
         self._character_placed = None
+        self._scene_cache = {}
 
-    def _assets(self, bg_name, frame_name):
-        if bg_name not in self._bg_cache:
-            self._bg_cache[bg_name] = load_bg(bg_name)
-        if frame_name not in self._frame_cache:
-            self._frame_cache[frame_name] = load_frame(frame_name) if frame_name else None
-        return self._bg_cache[bg_name], self._frame_cache[frame_name]
+    def _assets(self, bg_name, frame_name, tw, th):
+        bg_key = (bg_name, tw, th)
+        fr_key = (frame_name, tw, th)
+        if bg_key not in self._bg_cache:
+            self._bg_cache[bg_key] = load_bg(bg_name, tw, th)
+        if fr_key not in self._frame_cache:
+            self._frame_cache[fr_key] = load_frame(frame_name, tw, th) if frame_name else None
+        return self._bg_cache[bg_key], self._frame_cache[fr_key]
 
     def process(self, frame, rec, bg_name, frame_name):
-        frame = letterbox(frame, WIDTH, HEIGHT)
+        tw, th = canvas_size(frame)
+        frame = cover_crop(frame, tw, th)
         try:
             with self.infer_lock:
-                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.25)
+                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
         except RuntimeError:
             rec = [None, None, None, None]
             with self.infer_lock:
-                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.25)
-        background, moldura = self._assets(bg_name, frame_name)
+                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
+        background, moldura = self._assets(bg_name, frame_name, tw, th)
         h, w = frame.shape[:2]
         if background.shape[1] != w or background.shape[0] != h:
             background = cv2.resize(background, (w, h), interpolation=cv2.INTER_AREA)
+        key = (bg_name, w, h)
+        if key not in self._scene_cache:
+            if self._character_placed is None or self._character_placed.shape[1] != w or self._character_placed.shape[0] != h:
+                self._character_placed = place_overlay(self._character, w, h)
+            self._scene_cache[key] = overlay_rgba(background, self._character_placed)
+        scene_bg = self._scene_cache[key]
         if moldura is not None and (moldura.shape[1] != w or moldura.shape[0] != h):
             moldura = cv2.resize(moldura, (w, h), interpolation=cv2.INTER_AREA)
-        if self._character_placed is None or self._character_placed.shape[1] != w or self._character_placed.shape[0] != h:
-            self._character_placed = place_overlay(self._character, w, h)
-        composed = compose_rvm(fgr, pha, background, moldura, self._character_placed)
-        ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        composed = compose_rvm(fgr, pha, scene_bg, moldura, None)
+        ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
         jpeg = buf.tobytes() if ok_jpg else None
         return composed, jpeg, rec
 

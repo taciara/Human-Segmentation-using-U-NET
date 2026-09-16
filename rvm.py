@@ -4,8 +4,8 @@ from __future__ import annotations
 import torch
 import numpy as np
 
-DOWNSAMPLE = 0.25
-torch.set_num_threads(2)
+DOWNSAMPLE = 0.28
+torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
@@ -34,7 +34,7 @@ class RVMMatting:
             rec = [None, None, None, None]
         if downsample is None:
             downsample = DOWNSAMPLE
-        rgb = frame_bgr[:, :, ::-1].copy()
+        rgb = np.ascontiguousarray(frame_bgr[:, :, ::-1])
         src = torch.from_numpy(rgb).float().permute(2, 0, 1).unsqueeze(0) / 255.0
         src = src.to(self.device)
         fgr, pha, *rec = self.model(src, *rec, float(downsample))

@@ -133,15 +133,24 @@
             margin-top: 5.1rem;
         }
         .drip-wrap { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+        .drip-wrap::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            background-image: url("{{ url_for('static', filename='img/bg_2.png') }}");
+            background-repeat: no-repeat;
+            background-position-y: 105%;
+            background-position-x: center;
+        }
         .drip-bottom {
             position: absolute;
-            left: 0; right: 0; bottom: 0; height: 34%;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 100%;
+            z-index: 1;
             background: url("{{ url_for('static', filename='img/bg_orange.png') }}") center / cover no-repeat;
-        }
-        .drip-bottom svg {
-            position: absolute;
-            left: 0; right: 0; top: -48px;
-            width: 100%; height: 56px;
         }
         .note {
             position: relative;
@@ -157,11 +166,7 @@
 <body>
     <section class="screen">
         <div class="drip-wrap">
-            <div class="drip-bottom">
-                <svg viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true">
-                    <path fill="#000" d="M0 0h400v20C360 20 350 56 330 56c-28 0-32-36-58-36S240 56 214 56s-30-36-58-36-34 36-62 36S54 20 0 20V0z"/>
-                </svg>
-            </div>
+            <div class="drip-bottom"></div>
         </div>
         <div class="top-logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta"></div>
         <div class="polaroid-stage">

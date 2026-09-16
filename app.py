@@ -108,7 +108,12 @@ def letterbox(img, tw=WIDTH, th=HEIGHT):
     return canvas
 
 
-def cover_crop(img, tw, th):
+def cover_crop(img, tw, th, zoom_out=1.0):
+    if zoom_out > 1.0:
+        h0, w0 = img.shape[:2]
+        pad_x = int(w0 * (zoom_out - 1.0) / 2)
+        pad_y = int(h0 * (zoom_out - 1.0) / 2)
+        img = cv2.copyMakeBorder(img, pad_y, pad_y, pad_x, pad_x, cv2.BORDER_REPLICATE)
     h, w = img.shape[:2]
     scale = max(tw / max(1, w), th / max(1, h))
     nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
@@ -256,7 +261,9 @@ class CameraBooth:
 
     def process(self, frame, rec, bg_name, frame_name):
         tw, th = canvas_size(frame)
-        frame = cover_crop(frame, tw, th)
+        # zoom_out > 1 dá mais campo de visão: a câmera fica perto da pessoa no
+        # totem físico, e o crop vertical/retrato deixava a pessoa grande demais.
+        frame = cover_crop(frame, tw, th, zoom_out=1.35)
         try:
             with self.infer_lock:
                 fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
@@ -469,12 +476,18 @@ def capture():
     with _lock:
         sess = _sessions.get(g.sid)
         image = None if sess is None else sess.get("last_bgr")
-        if image is None:
-            return jsonify(ok=False, error="Sem imagem da webcam"), 503
-        name = time.strftime("foto_%Y%m%d_%H%M%S.jpg")
-        cv2.imwrite(str(PHOTOS_DIR / name), image)
-        card = make_polaroid(image)
-        cv2.imwrite(str(PHOTOS_DIR / polaroid_name(name)), card)
+        if image is not None:
+            image = image.copy()
+    if image is None:
+        return jsonify(ok=False, error="Sem imagem da webcam"), 503
+    h, w = image.shape[:2]
+    if max(h, w) > 900:
+        scale = 900 / float(max(h, w))
+        image = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    name = time.strftime("foto_%Y%m%d_%H%M%S.jpg")
+    cv2.imwrite(str(PHOTOS_DIR / name), image)
+    card = make_polaroid(image)
+    cv2.imwrite(str(PHOTOS_DIR / polaroid_name(name)), card)
     page_url = f"{public_origin()}/p/{name}"
     return jsonify(
         ok=True,
@@ -512,7 +525,7 @@ if __name__ == "__main__":
     get_booth()
     try:
         print("Photobooth: http://127.0.0.1:5000")
-        print("Túnel: https://filtro.seuprojeto.online")
+        print("Túnel: https://fanta-filtro.seuprojeto.online")
         app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
     finally:
         if booth is not None:

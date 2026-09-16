@@ -38,6 +38,7 @@ import com.herohan.uvcapp.IImageCapture
 import com.serenegiant.usb.IFrameCallback
 import com.serenegiant.usb.Size
 import com.serenegiant.usb.UVCCamera
+import com.serenegiant.usb.UVCParam
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
@@ -246,18 +247,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
             override fun onCameraOpen(device: UsbDevice) {
                 if (previewReady) return
-                val sizes = helper.supportedSizeList
-                val pick = pickPreviewSize(sizes)
-                if (pick != null) {
-                    try {
-                        helper.setPreviewSize(pick)
-                        previewW = pick.width
-                        previewH = pick.height
-                        Log.i(TAG, "setPreviewSize ${pick.width}x${pick.height}")
-                    } catch (err: Exception) {
-                        Log.e(TAG, "setPreviewSize", err)
-                    }
-                }
+                // NÃO chamar setPreviewSize() aqui: a câmera já abriu com uma resolução
+                // fixa (via openCamera(Size) ou openCamera(UVCParam)). Tentar reconfigurar
+                // depois de aberta não tem efeito real no stream ativo e pode deixar o
+                // estado interno inconsistente (causa observada: frames pretos).
                 val sz = helper.previewSize
                 if (sz != null) {
                     previewW = sz.width
@@ -265,27 +258,24 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 }
                 previewReady = true
                 Log.i(TAG, "camera open ${previewW}x${previewH}")
-                notifyUsbHint("Câmera conectada, aplicando filtro…")
+                notifyUsbHint("Câmera conectada, aguardando sensor…")
                 attachSurface()
                 helper.setFrameCallback(IFrameCallback { buf -> onFrame(buf) }, UVCCamera.PIXEL_FORMAT_NV21)
                 try {
                     val cap = helper.imageCaptureConfig
                     cap.setCaptureMode(IImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    cap.setJpegCompressionQuality(62)
+                    cap.setJpegCompressionQuality(70)
                     helper.setImageCaptureConfig(cap)
                 } catch (err: Exception) {
                     Log.e(TAG, "imageCaptureConfig", err)
                 }
                 helper.startPreview()
-                if (pageReady) {
-                    mainHandler.removeCallbacks(snapshotLoop)
-                    mainHandler.postDelayed(snapshotLoop, 800)
-                } else {
-                    mainHandler.postDelayed({
-                        mainHandler.removeCallbacks(snapshotLoop)
-                        mainHandler.postDelayed(snapshotLoop, 800)
-                    }, 3_000)
-                }
+                // takePicture()/IImageCapture usa o endpoint UVC "still capture"
+                // separado, que continua devolvendo frames vazios mesmo com o fix de
+                // isochronous packets (UVCAndroid 1.0.13). O endpoint de STREAMING
+                // (IFrameCallback/onFrame) já entrega dados reais agora, então usamos
+                // só ele: snapshotLoop/grabStillPicture ficam desativados.
+                Log.i(TAG, "USB_STILL_CAPTURE_DISABLED: relying on onFrame() stream only")
             }
 
             override fun onCameraClose(device: UsbDevice) {
@@ -319,22 +309,44 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             val sizes = helper.supportedSizeList
             val formats = helper.supportedFormatList?.size ?: 0
             Log.i(TAG, "open attempt=$attempt sizes=${sizes?.size ?: 0} formats=$formats")
-            sizes?.take(6)?.forEach { s ->
+            sizes?.take(10)?.forEach { s ->
                 Log.i(TAG, "  size ${s.width}x${s.height} type=${s.type} fps=${s.fps}")
             }
-            val pick = pickPreviewSize(sizes)
+            val realPick = pickPreviewSize(sizes)
             when {
-                pick != null -> {
-                    Log.i(TAG, "openCamera ${pick.width}x${pick.height}")
-                    helper.openCamera(pick)
+                realPick != null -> {
+                    Log.i(TAG, "openCamera(param) ${realPick.width}x${realPick.height} type=${realPick.type} +FIX_BANDWIDTH")
+                    openWithQuirk(helper, realPick)
                 }
                 attempt < 5 -> scheduleOpenCamera(helper, attempt + 1)
                 else -> {
-                    Log.w(TAG, "openCamera default")
-                    helper.openCamera()
+                    // supportedSizeList nunca populou — forçar MJPEG manualmente.
+                    // dmesg mostra erro real do driver: "gpd_free_count:7,
+                    // number_of_packets:8 / mtk_kick_CmdQ:607 Error Here" — o pool de
+                    // descritores isochronous (GPD) do controller MUSB (MediaTek MT6768)
+                    // é menor que o número de pacotes que a transferência está pedindo,
+                    // então a transferência falha silenciosamente (frame sempre vazio).
+                    // Resolução/fps bem baixos reduzem o número de pacotes por transfer.
+                    Log.w(TAG, "openCamera FORCED MJPEG 320x240@15fps +FIX_BANDWIDTH (sizes empty)")
+                    openWithQuirk(helper, Size(UVCCamera.FRAME_FORMAT_MJPEG, 320, 240, 15, null))
                 }
             }
         }, delayMs)
+    }
+
+    private fun openWithQuirk(helper: ICameraHelper, size: Size) {
+        try {
+            val param = UVCParam(size, UVCCamera.UVC_QUIRK_FIX_BANDWIDTH)
+            helper.openCamera(param)
+        } catch (err: Exception) {
+            Log.e(TAG, "openCamera(UVCParam) failed, trying openCamera(Size)", err)
+            try {
+                helper.openCamera(size)
+            } catch (err2: Exception) {
+                Log.e(TAG, "openCamera(Size) also failed, trying default", err2)
+                helper.openCamera()
+            }
+        }
     }
 
     private val snapshotLoop = object : Runnable {
@@ -358,9 +370,19 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                     try {
                         if (f.exists() && f.length() > 400) {
                             val n = f.length()
-                            latestJpeg.set(Base64.encodeToString(f.readBytes(), Base64.NO_WRAP))
+                            val bytes = f.readBytes()
+                            latestJpeg.set(Base64.encodeToString(bytes, Base64.NO_WRAP))
                             val c = frameLog.incrementAndGet()
                             if (c == 1 || c % 25 == 0) Log.i(TAG, "snap ok $n")
+                            if (DEBUG_SAVE_FRAMES && (c == 1 || c % 50 == 0)) {
+                                try {
+                                    val dbg = File(getExternalFilesDir(null), "debug_frame_$c.jpg")
+                                    dbg.writeBytes(bytes)
+                                    Log.i(TAG, "debug frame saved: ${dbg.absolutePath} size=$n")
+                                } catch (dbgErr: Exception) {
+                                    Log.e(TAG, "debug save", dbgErr)
+                                }
+                            }
                             if (!bridgeFromSnap && pageReady) {
                                 bridgeFromSnap = true
                                 web.evaluateJavascript(
@@ -391,18 +413,24 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     private fun pickPreviewSize(sizes: List<Size>?): Size? {
         if (sizes.isNullOrEmpty()) return null
+        // Preferir MJPEG: câmeras 4K como a EMEET S600L geralmente só entregam
+        // YUYV cru em resoluções muito baixas/poucos fps por causa da banda USB;
+        // abrir em YUYV pode resultar em frames vazios/pretos. MJPEG é confiável.
+        val mjpeg = sizes.filter { it.type == UVCCamera.FRAME_FORMAT_MJPEG }
+        val pool = if (mjpeg.isNotEmpty()) mjpeg else sizes
         val prefer = listOf(
+            320 to 240,
             640 to 480,
             1280 to 720,
             800 to 600,
             960 to 540
         )
         for ((w, h) in prefer) {
-            sizes.firstOrNull { it.width == w && it.height == h }?.let { return it }
+            pool.firstOrNull { it.width == w && it.height == h }?.let { return it }
         }
-        return sizes.filter { it.width <= 1280 && it.height <= 720 }
+        return pool.filter { it.width <= 1280 && it.height <= 720 }
             .maxByOrNull { it.width * it.height }
-            ?: sizes.minByOrNull { it.width * it.height }
+            ?: pool.minByOrNull { it.width * it.height }
     }
 
     private fun attachSurface() {
@@ -481,7 +509,28 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 if (!yuv.compressToJpeg(Rect(0, 0, w, h), q, out)) return
             }
             if (out.size() > 400) {
-                latestJpeg.set(Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP))
+                val jpegBytes = out.toByteArray()
+                latestJpeg.set(Base64.encodeToString(jpegBytes, Base64.NO_WRAP))
+                if (DEBUG_SAVE_FRAMES && (logged == 1 || logged % 200 == 0)) {
+                    try {
+                        val dbg = File(getExternalFilesDir(null), "onframe_debug_$logged.jpg")
+                        dbg.writeBytes(jpegBytes)
+                        Log.i(TAG, "onFrame debug saved: ${dbg.absolutePath} size=${jpegBytes.size}")
+                    } catch (dbgErr: Exception) {
+                        Log.e(TAG, "onFrame debug save", dbgErr)
+                    }
+                }
+                if (!bridgeFromSnap && pageReady) {
+                    bridgeFromSnap = true
+                    // onFrame() roda em thread nativa (Thread-3), não na main thread —
+                    // WebView exige que evaluateJavascript() seja chamado na main thread.
+                    mainHandler.post {
+                        web.evaluateJavascript(
+                            "try{if(window.startUsbBridge){window.startUsbBridge();}}catch(e){}",
+                            null
+                        )
+                    }
+                }
             }
         } catch (err: Exception) {
             Log.e(TAG, "jpeg", err)
@@ -512,5 +561,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         const val REQ_CAMERA = 32
         const val OFFSCREEN_TEX_ID = 42
         const val BOOTH_URL = "https://fanta-filtro.seuprojeto.online/"
+        const val DEBUG_SAVE_FRAMES = true
     }
 }

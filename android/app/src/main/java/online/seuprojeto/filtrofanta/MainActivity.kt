@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private var cameraHelper: ICameraHelper? = null
     private var usbStarted = false
     private var previewReady = false
+    private var isKioskPinned = false
     private var previewW = 640
     private var previewH = 480
     private var pageReady = false
@@ -81,6 +82,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Modo kiosk (App Pinning) é ativado mais adiante, só depois que a
+        // câmera USB conectar (ver onCameraOpen). Pinnar aqui no onCreate
+        // bloqueia os diálogos de permissão (CAMERA do Android e o de acesso
+        // ao dispositivo USB específico) de aparecerem — Screen Pinning
+        // impede overlays de sistema de outros processos, criando um deadlock
+        // onde a câmera nunca consegue pedir permissão.
         web = findViewById(R.id.web)
         splash = findViewById(R.id.splash)
         splashStatus = findViewById(R.id.splashStatus)
@@ -158,6 +165,41 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             { v -> Log.i(TAG, "boot $v") }
         )
         mainHandler.postDelayed({ ensureCameraPermission() }, 2_000)
+        mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
+    }
+
+    // O processo sandboxed do Chromium pode ser encerrado pelo sistema (pressão
+    // de memória, ou o "process is bad" visto no ActivityManager) enquanto está
+    // OCIOSO — sem carregar nova página nem crashar durante uma operação ativa —
+    // e isso NÃO dispara onRenderProcessGone(). O sintoma observado é a tela
+    // ficar preta permanentemente enquanto o app e a câmera continuam normais.
+    // Esse heartbeat via evaluateJavascript detecta isso: se algumas respostas
+    // seguidas não chegarem, força recreate() da Activity.
+    private var heartbeatMisses = 0
+    private val webviewHeartbeat: Runnable = object : Runnable {
+        override fun run() {
+            var replied = false
+            try {
+                web.evaluateJavascript("1") { replied = true }
+            } catch (err: Exception) {
+                Log.e(TAG, "heartbeat evaluateJavascript threw", err)
+            }
+            mainHandler.postDelayed({
+                if (replied) {
+                    heartbeatMisses = 0
+                    mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
+                } else {
+                    heartbeatMisses++
+                    Log.w(TAG, "WebView heartbeat miss #$heartbeatMisses")
+                    if (heartbeatMisses >= HEARTBEAT_MAX_MISSES) {
+                        Log.e(TAG, "WebView heartbeat dead — recreating activity")
+                        recreate()
+                    } else {
+                        mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
+                    }
+                }
+            }, HEARTBEAT_CHECK_DELAY_MS)
+        }
     }
 
     private val fallbackSiteReady = Runnable {
@@ -310,6 +352,18 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 // (IFrameCallback/onFrame) já entrega dados reais agora, então usamos
                 // só ele: snapshotLoop/grabStillPicture ficam desativados.
                 Log.i(TAG, "USB_STILL_CAPTURE_DISABLED: relying on onFrame() stream only")
+                // Só agora, com a câmera de fato aberta e todas as permissões já
+                // concedidas, ativamos o kiosk mode — ver comentário no onCreate
+                // sobre por que pinnar antes disso trava o diálogo de permissão.
+                if (!isKioskPinned) {
+                    isKioskPinned = true
+                    try {
+                        startLockTask()
+                        Log.i(TAG, "kiosk mode (App Pinning) enabled")
+                    } catch (err: Exception) {
+                        Log.e(TAG, "startLockTask failed", err)
+                    }
+                }
             }
 
             override fun onCameraClose(device: UsbDevice) {
@@ -642,5 +696,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         const val OFFSCREEN_TEX_ID = 42
         const val BOOTH_URL = "https://fanta-filtro.seuprojeto.online/"
         const val DEBUG_SAVE_FRAMES = true
+        const val HEARTBEAT_INTERVAL_MS = 5_000L
+        const val HEARTBEAT_CHECK_DELAY_MS = 3_000L
+        const val HEARTBEAT_MAX_MISSES = 3
     }
 }

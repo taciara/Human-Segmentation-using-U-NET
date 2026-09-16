@@ -906,7 +906,14 @@
                 alert("Permita a câmera neste aparelho: " + (err.message || err));
             });
         }
-        setTimeout(bootCam, 400);
+        // Iniciar boot assim que DOM estiver pronto
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bootCam);
+        } else {
+            bootCam();
+        }
+        // Fallback se JS não executar em tempo
+        setTimeout(bootCam, 200);
     </script>
 </body>
 </html>

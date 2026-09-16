@@ -840,10 +840,27 @@
             const usbWait = document.getElementById("usbWait");
             let inFlight = false;
             let emptyFrames = 0;
+            let lastFrameId = -1;
+            const hasFrameId = !!(window.AndroidBooth && window.AndroidBooth.latestFrameId);
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight) {
                     setTimeout(pushFrame, 200);
                     return;
+                }
+                // A câmera USB nesse hardware só entrega um frame realmente novo a
+                // cada poucos segundos — fazendo poll a cada 150ms sem checar isso,
+                // reenviávamos e reprocessávamos (RVM, no servidor) o MESMO frame
+                // dezenas de vezes, sobrecarregando CPU/rede à toa e deixando o
+                // preview "congelado" na mesma imagem. Se o APK expõe um id de
+                // frame, só seguimos quando ele muda; poll continua leve (só lê um
+                // int) mesmo quando não há novidade.
+                if (hasFrameId) {
+                    const fid = window.AndroidBooth.latestFrameId();
+                    if (fid === lastFrameId) {
+                        setTimeout(pushFrame, 120);
+                        return;
+                    }
+                    lastFrameId = fid;
                 }
                 inFlight = true;
                 try {
@@ -891,7 +908,7 @@
                     }
                 } finally {
                     inFlight = false;
-                    setTimeout(pushFrame, 150);
+                    setTimeout(pushFrame, hasFrameId ? 60 : 150);
                 }
             }
             pushFrame();

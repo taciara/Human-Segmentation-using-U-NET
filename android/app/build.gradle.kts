@@ -10,8 +10,8 @@ android {
         applicationId = "online.seuprojeto.filtrofanta"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "3.4"
+        versionCode = 8
+        versionName = "4.0"
     }
     buildTypes {
         release {

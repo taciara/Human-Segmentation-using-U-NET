@@ -50,6 +50,12 @@ import java.util.concurrent.atomic.AtomicReference
 
 class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private val latestJpeg = AtomicReference("")
+    // Incrementado a cada novo frame real gravado em latestJpeg. A câmera EMEET
+    // nesse hardware só entrega um frame novo a cada poucos segundos (medido: até
+    // 27s de intervalo), mas o JS fazia poll a cada 50-150ms — reenviando e
+    // reprocessando (RVM) o MESMO frame dezenas de vezes por nada. O JS compara
+    // esse id com o último que viu e só faz POST /frame quando ele muda.
+    private val frameId = AtomicInteger(0)
     private val skip = AtomicInteger(0)
     private val encodeBusy = AtomicBoolean(false)
     private val frameExecutor = Executors.newSingleThreadExecutor()
@@ -107,6 +113,19 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                     splashStatus.text = "Sem internet. Verifique Wi‑Fi e abra de novo."
                 }
             }
+
+            // O processo sandboxed do Chromium (renderer do WebView) pode morrer
+            // por OOM ou crash — vimos isso travar a tela em preto permanentemente
+            // durante testes, com o ActivityManager recusando relançar o processo
+            // ("process is bad") mesmo reiniciando a Activity manualmente. Sem
+            // tratar esse callback, o WebView some e nada mais é desenhado.
+            // Recriar a Activity inteira é a recuperação mais confiável: reabre
+            // splash, WebView e a câmera USB do zero.
+            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}) — recreating activity")
+                recreate()
+                return true
+            }
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -116,7 +135,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
         web.addJavascriptInterface(BoothBridge(), "AndroidBooth")
         findViewById<TextureView>(R.id.uvc).surfaceTextureListener = this
-        web.loadUrl("$BOOTH_URL?v=apk7")
+        web.loadUrl("$BOOTH_URL?v=apk8")
         mainHandler.postDelayed({ hideSplashOnly() }, 3_500)
         mainHandler.postDelayed(fallbackSiteReady, 15_000)
         handleUsbIntent(intent)
@@ -265,6 +284,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 Log.i(TAG, "camera open ${previewW}x${previewH}")
                 notifyUsbHint("Câmera conectada, aguardando sensor…")
                 attachSurface()
+                // PIXEL_FORMAT_RAW foi testado esperando pegar o MJPEG bruto sem
+                // a lib decodificar, mas na prática ela sempre decodifica
+                // internamente antes de entregar (RAW = YUYV 2 bytes/pixel, não
+                // JPEG) — não há como evitar essa conversão via essa API.
+                // Pacotes isochronous corrompidos durante a conversão MJPEG->NV21
+                // ocasionalmente produzem um padrão de "listras" na parte da
+                // imagem capturada depois do ponto de corrupção. Sem forma de
+                // evitar isso nessa lib, ficamos com NV21 (que funciona a maior
+                // parte do tempo) — ver detecção de tamanho abaixo para pelo
+                // menos descartar frames truncados.
                 helper.setFrameCallback(IFrameCallback { buf -> onFrame(buf) }, UVCCamera.PIXEL_FORMAT_NV21)
                 try {
                     val cap = helper.imageCaptureConfig
@@ -505,10 +534,13 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     private fun processFrame(data: ByteArray, n: Int, logged: Int) {
-        if (data[0] == 0xFF.toByte() && data[1] == 0xD8.toByte()) {
-            latestJpeg.set(Base64.encodeToString(data, Base64.NO_WRAP))
-            return
-        }
+        // Formato NV21: Y plane (w*h bytes) + VU plane (w*h/2 bytes). Um frame
+        // truncado/com pacotes isochronous perdidos no meio do transporte USB às
+        // vezes chega com tamanho diferente do exato esperado — descartar esses
+        // evita pelo menos os casos mais grosseiros de corrupção (o resto, onde o
+        // tamanho bate mas o CONTEÚDO tem um trecho corrompido, não dá pra
+        // detectar de forma barata aqui; é a causa do artefato de "listras"
+        // ocasional que ainda pode aparecer).
         val pixels = n * 2 / 3
         var w = previewW
         var h = previewH
@@ -516,17 +548,13 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             when (pixels) {
                 640 * 480 -> { w = 640; h = 480 }
                 1280 * 720 -> { w = 1280; h = 720 }
-                else -> return
+                else -> {
+                    if (logged <= 20) Log.w(TAG, "frame size mismatch (n=$n, expected ${w}x$h), dropping")
+                    return
+                }
             }
         }
         try {
-            // A câmera insiste em abrir na resolução nativa (3840x2160) mesmo
-            // pedindo 320x240/640x480 no openCamera(). Um subsample manual do
-            // buffer NV21 (bit twiddling no plano UV) causava artefatos de cor por
-            // erro de alinhamento do chroma 4:2:0 — trocado por APIs nativas do
-            // Android (compress + decode com inSampleSize), que são confiáveis e,
-            // rodando fora da hot path da câmera (thread dedicada), rápidas o
-            // suficiente mesmo na imagem cheia.
             val t0 = System.currentTimeMillis()
             val rawOut = ByteArrayOutputStream()
             val yuv = YuvImage(data, ImageFormat.NV21, w, h, null)
@@ -557,6 +585,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             run {
                 val jpegBytes = finalBytes
                 latestJpeg.set(Base64.encodeToString(jpegBytes, Base64.NO_WRAP))
+                frameId.incrementAndGet()
                 if (DEBUG_SAVE_FRAMES && (logged == 1 || logged % 200 == 0)) {
                     try {
                         val dbg = File(getExternalFilesDir(null), "onframe_debug_$logged.jpg")
@@ -587,6 +616,9 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     inner class BoothBridge {
         @JavascriptInterface
         fun latestJpeg(): String = latestJpeg.get() ?: ""
+
+        @JavascriptInterface
+        fun latestFrameId(): Int = frameId.get()
 
         @JavascriptInterface
         fun isApk(): Boolean = true

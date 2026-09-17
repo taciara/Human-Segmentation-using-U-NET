@@ -10,8 +10,8 @@ android {
         applicationId = "online.seuprojeto.filtrofanta"
         minSdk = 24
         targetSdk = 35
-        versionCode = 17
-        versionName = "5.2.1-native"
+        versionCode = 24
+        versionName = "5.3.5-native"
     }
     androidResources {
         noCompress += listOf("tflite")

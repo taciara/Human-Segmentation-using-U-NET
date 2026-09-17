@@ -10,63 +10,35 @@
         android:layout_height="2dp"
         android:importantForAccessibility="no" />
 
-    <!-- Fundo “drip” igual ao site -->
-    <FrameLayout
+    <online.seuprojeto.filtrofanta.DripBackgroundView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent" />
 
-        <ImageView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:contentDescription="@null"
-            android:scaleType="centerCrop"
-            android:src="@drawable/bg_orange" />
-
-        <ImageView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:contentDescription="@null"
-            android:scaleType="centerCrop"
-            android:src="@drawable/bg_drip_overlay" />
-    </FrameLayout>
-
-    <!-- TELA 1: CAPTURA -->
+    <!-- TELA CAPTURA (#capture) -->
     <LinearLayout
         android:id="@+id/screenCapture"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingTop="8dp"
-        android:paddingBottom="12dp">
+        style="@style/BoothScreen"
+        android:paddingTop="6dp"
+        android:paddingBottom="0dp">
 
-        <ImageView
-            android:layout_width="190dp"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@null"
-            android:src="@drawable/logo_fanta" />
+        <ImageView style="@style/BoothTopLogo" />
 
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="@dimen/screen_gutter"
             android:layout_marginTop="6dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginEnd="@dimen/screen_gutter"
             android:layout_weight="1">
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/polaroid_card"
-                android:elevation="10dp"
-                android:orientation="vertical"
-                android:padding="14dp">
+            <online.seuprojeto.filtrofanta.PolaroidFrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center">
 
-                <FrameLayout
+                <online.seuprojeto.filtrofanta.AspectRatioFrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
                     android:background="#111111">
 
                     <ImageView
@@ -81,7 +53,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:orientation="vertical">
+                        android:orientation="vertical"
+                        android:padding="16dp">
 
                         <ProgressBar
                             android:layout_width="46dp"
@@ -95,8 +68,6 @@
                             android:layout_marginTop="10dp"
                             android:fontFamily="@font/fanta_sans_regular"
                             android:gravity="center"
-                            android:paddingStart="16dp"
-                            android:paddingEnd="16dp"
                             android:text="Preparando câmera…"
                             android:textColor="#D9FFFFFF"
                             android:textSize="14sp" />
@@ -110,8 +81,8 @@
 
                         <TextView
                             android:id="@+id/countdownNum"
-                            android:layout_width="88dp"
-                            android:layout_height="88dp"
+                            android:layout_width="@dimen/countdown_bubble_min"
+                            android:layout_height="@dimen/countdown_bubble_min"
                             android:layout_gravity="center"
                             android:background="@drawable/countdown_bubble"
                             android:fontFamily="@font/fanta_pop_condensed"
@@ -121,182 +92,128 @@
                             android:textSize="42sp"
                             android:textStyle="bold" />
                     </FrameLayout>
-                </FrameLayout>
+                </online.seuprojeto.filtrofanta.AspectRatioFrameLayout>
 
                 <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="88dp"
-                    android:paddingTop="4dp">
+                    android:layout_height="wrap_content"
+                    android:minHeight="@dimen/polaroid_footer_min_height"
+                    android:paddingStart="10dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="6dp">
 
                     <Button
                         android:id="@+id/btnSnap"
-                        android:layout_width="wrap_content"
+                        style="@style/BoothButtonFanta"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center"
-                        android:background="@drawable/bg_btn_fanta"
-                        android:fontFamily="@font/fanta_pop_condensed"
-                        android:minWidth="220dp"
-                        android:paddingStart="28dp"
-                        android:paddingTop="12dp"
-                        android:paddingEnd="28dp"
-                        android:paddingBottom="20dp"
-                        android:text="TIRAR FOTO"
-                        android:textAllCaps="true"
-                        android:textColor="@color/ink"
-                        android:textSize="18sp" />
+                        android:layout_marginStart="28dp"
+                        android:layout_marginEnd="28dp"
+                        android:text="TIRAR FOTO" />
                 </FrameLayout>
-            </LinearLayout>
+            </online.seuprojeto.filtrofanta.PolaroidFrameLayout>
         </FrameLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <include
+            layout="@layout/include_how_panel"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="10dp"
             android:layout_marginEnd="16dp"
-            android:background="@drawable/how_panel"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="12dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="0.9"
-                android:fontFamily="@font/fanta_pop_condensed"
-                android:text="COMO\nFUNCIONA?"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.4"
-                android:fontFamily="@font/fanta_sans_bold"
-                android:lineSpacingExtra="2dp"
-                android:text="1. POSICIONE-SE NO CENTRO DA TELA\n2. TOQUE EM TIRAR FOTO\n3. SORRIA E PREPARE-SE"
-                android:textColor="#FFFFFF"
-                android:textSize="11sp" />
-        </LinearLayout>
+            android:layout_marginBottom="16dp" />
     </LinearLayout>
 
-    <!-- TELA 2: RESULTADO -->
+    <!-- TELA RESULTADO (#result) -->
     <LinearLayout
         android:id="@+id/screenResult"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingTop="8dp"
+        style="@style/BoothScreen"
+        android:paddingTop="6dp"
         android:visibility="gone">
 
-        <ImageView
-            android:layout_width="190dp"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@null"
-            android:src="@drawable/logo_fanta" />
+        <ImageView style="@style/BoothTopLogo" />
 
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginStart="24dp"
+            android:layout_marginStart="@dimen/screen_gutter"
             android:layout_marginTop="6dp"
-            android:layout_marginEnd="24dp"
+            android:layout_marginEnd="@dimen/screen_gutter"
             android:layout_weight="1">
 
-            <LinearLayout
-                android:layout_width="match_parent"
+            <online.seuprojeto.filtrofanta.PolaroidFrameLayout
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:background="@drawable/polaroid_card"
-                android:elevation="10dp"
-                android:orientation="vertical"
-                android:padding="14dp">
+                android:layout_gravity="center">
 
-                <ImageView
-                    android:id="@+id/shotImg"
+                <online.seuprojeto.filtrofanta.AspectRatioFrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="360dp"
-                    android:background="#111111"
-                    android:contentDescription="Sua foto"
-                    android:scaleType="centerCrop" />
+                    android:layout_height="wrap_content"
+                    android:background="#111111">
+
+                    <ImageView
+                        android:id="@+id/shotImg"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="Sua foto"
+                        android:scaleType="centerCrop" />
+                </online.seuprojeto.filtrofanta.AspectRatioFrameLayout>
 
                 <ImageView
                     android:layout_width="match_parent"
                     android:layout_height="72dp"
-                    android:layout_marginTop="-8dp"
+                    android:layout_marginTop="-32dp"
+                    android:layout_marginBottom="-48dp"
                     android:contentDescription="@null"
                     android:paddingTop="8dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/logo_fanta" />
-            </LinearLayout>
+            </online.seuprojeto.filtrofanta.PolaroidFrameLayout>
         </FrameLayout>
 
         <Button
             android:id="@+id/btnShare"
+            style="@style/BoothButtonFanta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="36dp"
+            android:layout_marginTop="@dimen/share_margin_top"
             android:layout_marginBottom="24dp"
-            android:background="@drawable/bg_btn_fanta"
             android:enabled="false"
-            android:fontFamily="@font/fanta_pop_condensed"
-            android:minWidth="260dp"
-            android:paddingStart="28dp"
-            android:paddingTop="12dp"
-            android:paddingEnd="28dp"
-            android:paddingBottom="20dp"
-            android:text="COMPARTILHAR"
-            android:textAllCaps="true"
-            android:textColor="@color/ink"
-            android:textSize="18sp" />
+            android:minWidth="280dp"
+            android:text="COMPARTILHAR" />
     </LinearLayout>
 
-    <!-- TELA 3: PRONTO (sem VPS: preview no lugar do QR) -->
+    <!-- TELA PRONTO (#ready) -->
     <LinearLayout
         android:id="@+id/screenReady"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="24dp"
+        style="@style/BoothScreen"
+        android:paddingStart="19dp"
+        android:paddingEnd="19dp"
+        android:paddingBottom="32dp"
         android:visibility="gone">
 
-        <ImageView
-            android:layout_width="190dp"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@null"
-            android:src="@drawable/logo_fanta" />
+        <ImageView style="@style/BoothTopLogo" />
 
         <TextView
+            style="@style/BoothReadyHeadline"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:fontFamily="@font/fanta_pop_condensed"
-            android:gravity="center"
-            android:text="SUA FOTO ESTÁ PRONTA!"
-            android:textColor="@color/fanta_orange"
-            android:textSize="28sp" />
+            android:text="SUA FOTO ESTÁ PRONTA!" />
 
         <TextView
+            style="@style/BoothReadyLead"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:fontFamily="@font/fanta_sans_bold"
-            android:gravity="center"
-            android:letterSpacing="0.04"
-            android:text="TOQUE EM COMPARTILHAR PARA ENVIAR PELA GALERIA OU REDES."
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
+            android:maxWidth="320dp"
+            android:text="TOQUE EM COMPARTILHAR PARA ENVIAR PELA GALERIA OU REDES." />
 
         <FrameLayout
-            android:layout_width="240dp"
-            android:layout_height="240dp"
+            android:layout_width="@dimen/qr_box_max"
+            android:layout_height="@dimen/qr_box_max"
             android:layout_marginTop="16dp"
             android:background="#FFFFFF"
             android:padding="10dp">
@@ -311,36 +228,20 @@
 
         <Button
             android:id="@+id/btnShareReady"
+            style="@style/BoothButtonFanta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:background="@drawable/bg_btn_fanta"
-            android:fontFamily="@font/fanta_pop_condensed"
-            android:minWidth="260dp"
-            android:paddingStart="28dp"
-            android:paddingTop="12dp"
-            android:paddingEnd="28dp"
-            android:paddingBottom="20dp"
-            android:text="COMPARTILHAR"
-            android:textAllCaps="true"
-            android:textColor="@color/ink"
-            android:textSize="18sp" />
+            android:minWidth="280dp"
+            android:text="COMPARTILHAR" />
 
         <Button
             android:id="@+id/btnAgain"
+            style="@style/BoothButtonAgain"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:background="@drawable/btn_white_pill"
-            android:fontFamily="@font/fanta_pop_condensed"
-            android:paddingStart="36dp"
-            android:paddingTop="14dp"
-            android:paddingEnd="36dp"
-            android:paddingBottom="14dp"
-            android:text="RECOMEÇAR"
-            android:textAllCaps="true"
-            android:textColor="@color/ink"
-            android:textSize="18sp" />
+            android:text="RECOMEÇAR" />
     </LinearLayout>
 
     <FrameLayout
@@ -359,7 +260,7 @@
             android:orientation="vertical">
 
             <ImageView
-                android:layout_width="160dp"
+                android:layout_width="@dimen/top_logo_splash"
                 android:layout_height="wrap_content"
                 android:adjustViewBounds="true"
                 android:contentDescription="@null"

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espelha clamp()/vh/vw do index.html (tablet ~1080×1920) -->
+    <dimen name="top_logo_capture">190dp</dimen>
+    <dimen name="top_logo_splash">160dp</dimen>
+    <dimen name="polaroid_stage_max_width">252dp</dimen>
+    <dimen name="polaroid_stage_max_width_result">240dp</dimen>
+    <dimen name="screen_gutter">16dp</dimen>
+
+    <dimen name="how_max_width">520dp</dimen>
+    <dimen name="how_margin_bottom">20dp</dimen>
+    <dimen name="how_panel_radius">18dp</dimen>
+    <dimen name="how_pad_v">14dp</dimen>
+    <dimen name="how_pad_h">16dp</dimen>
+    <dimen name="how_column_gap">10dp</dimen>
+    <dimen name="how_title_size">24sp</dimen>
+    <dimen name="how_list_size">12sp</dimen>
+    <dimen name="how_list_indent">18dp</dimen>
+    <dimen name="how_li_gap">2dp</dimen>
+
+    <dimen name="polaroid_footer_min_height">90dp</dimen>
+    <dimen name="btn_fanta_min_width_pct">220dp</dimen>
+    <dimen name="btn_fanta_text">18sp</dimen>
+    <dimen name="countdown_bubble_min">72dp</dimen>
+
+    <dimen name="ready_headline">28sp</dimen>
+    <dimen name="ready_lead">13sp</dimen>
+    <dimen name="qr_box_max">240dp</dimen>
+    <dimen name="share_margin_top">82dp</dimen>
+</resources>

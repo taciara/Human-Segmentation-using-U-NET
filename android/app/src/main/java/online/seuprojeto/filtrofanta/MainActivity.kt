@@ -25,6 +25,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -67,6 +69,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         bindViews()
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { _, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            screenCapture.setPadding(0, bars.top / 3, 0, bars.bottom + dp(16))
+            screenResult.setPadding(screenResult.paddingLeft, bars.top / 3, screenResult.paddingRight, bars.bottom + dp(16))
+            screenReady.setPadding(screenReady.paddingLeft, bars.top / 3, screenReady.paddingRight, bars.bottom + dp(16))
+            insets
+        }
         title = "Filtro Fanta ${BuildConfig.VERSION_NAME}"
 
         btnSnap.setOnClickListener { startCountdownAndCapture() }
@@ -328,4 +337,6 @@ class MainActivity : AppCompatActivity() {
         private const val TAG = "FiltroFanta"
         private const val REQ_CAMERA = 32
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 }

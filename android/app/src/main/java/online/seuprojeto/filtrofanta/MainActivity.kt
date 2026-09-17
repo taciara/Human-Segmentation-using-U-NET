@@ -122,15 +122,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             }
 
             // O processo sandboxed do Chromium (renderer do WebView) pode morrer
-            // por OOM ou crash — vimos isso travar a tela em preto permanentemente
-            // durante testes, com o ActivityManager recusando relançar o processo
-            // ("process is bad") mesmo reiniciando a Activity manualmente. Sem
-            // tratar esse callback, o WebView some e nada mais é desenhado.
-            // Recriar a Activity inteira é a recuperação mais confiável: reabre
-            // splash, WebView e a câmera USB do zero.
+            // por OOM ou crash — vimos isso travar a tela em preto permanentemente,
+            // com o ActivityManager recusando relançar o processo ("process is
+            // bad"). Só recreate() (que fica no MESMO processo Android do app)
+            // NÃO resolve: o processo sandboxed contaminado é reaproveitado e
+            // falha de novo, gerando um novo "process is bad" e um loop
+            // infinito de recreate()/falha. É preciso matar o PROCESSO INTEIRO
+            // do app para conseguir um PID novo com processos sandboxed limpos.
             override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
-                Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}) — recreating activity")
-                recreate()
+                Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}) — restarting whole process")
+                restartWholeProcess()
                 return true
             }
         }
@@ -192,8 +193,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                     heartbeatMisses++
                     Log.w(TAG, "WebView heartbeat miss #$heartbeatMisses")
                     if (heartbeatMisses >= HEARTBEAT_MAX_MISSES) {
-                        Log.e(TAG, "WebView heartbeat dead — recreating activity")
-                        recreate()
+                        Log.e(TAG, "WebView heartbeat dead — restarting whole process")
+                        restartWholeProcess()
                     } else {
                         mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
                     }
@@ -622,6 +623,11 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 while ((maxOf(w, h) / sampleSize) > targetLong * 2) sampleSize *= 2
                 val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
                 val bmp = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, opts)
+                if (bmp != null && looksCorrupted(bmp)) {
+                    if (logged <= 30) Log.w(TAG, "frame looks corrupted (stripe artifact), dropping")
+                    bmp.recycle()
+                    return
+                }
                 if (bmp != null) {
                     val scale = targetLong.toFloat() / maxOf(bmp.width, bmp.height)
                     val scaled = if (scale < 1f) {
@@ -667,6 +673,41 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
     }
 
+    /**
+     * Heurística para detectar o artefato de "código de barras" causado por
+     * corrupção na conversão MJPEG->NV21 (pacotes isochronous USB perdidos):
+     * compara o quanto os pixels mudam bruscamente de um para o outro (soma
+     * das diferenças absolutas de RGB) numa linha perto do fim da imagem
+     * contra uma linha central. Conteúdo de câmera normal varia suavemente;
+     * o artefato observado é uma alternância de cor abrupta e repetitiva
+     * concentrada na parte final do frame — resulta numa "edginess" muito
+     * maior que o resto da imagem.
+     */
+    private fun looksCorrupted(bmp: Bitmap): Boolean {
+        val w = bmp.width
+        val h = bmp.height
+        if (w < 20 || h < 20) return false
+        fun rowEdginess(y: Int): Long {
+            var sum = 0L
+            val step = maxOf(1, w / 200)
+            var prev = bmp.getPixel(0, y)
+            var x = step
+            while (x < w) {
+                val px = bmp.getPixel(x, y)
+                val dr = ((px shr 16) and 0xFF) - ((prev shr 16) and 0xFF)
+                val dg = ((px shr 8) and 0xFF) - ((prev shr 8) and 0xFF)
+                val db = (px and 0xFF) - (prev and 0xFF)
+                sum += kotlin.math.abs(dr) + kotlin.math.abs(dg) + kotlin.math.abs(db)
+                prev = px
+                x += step
+            }
+            return sum
+        }
+        val bottomEdge = rowEdginess((h * 0.92f).toInt().coerceIn(0, h - 1))
+        val midEdge = rowEdginess((h * 0.5f).toInt().coerceIn(0, h - 1)).coerceAtLeast(1L)
+        return bottomEdge > midEdge * 4 && bottomEdge > 3000
+    }
+
     inner class BoothBridge {
         @JavascriptInterface
         fun latestJpeg(): String = latestJpeg.get() ?: ""
@@ -676,6 +717,29 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
         @JavascriptInterface
         fun isApk(): Boolean = true
+    }
+
+    // Mata o processo inteiro do app e agenda a MainActivity pra reabrir em
+    // ~1s. Diferente de recreate()/Activity.finish(), isso força um PID novo
+    // — necessário porque "process is bad" no ActivityManager é rastreado por
+    // processo, e recreate() reaproveitava o mesmo processo contaminado,
+    // entrando num loop (heartbeat morto -> recreate -> processo sandboxed
+    // falha de novo -> heartbeat morto de novo).
+    private fun restartWholeProcess() {
+        val restartIntent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this, 0, restartIntent,
+            android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarmManager = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
+        alarmManager.set(
+            android.app.AlarmManager.ELAPSED_REALTIME,
+            android.os.SystemClock.elapsedRealtime() + 1000,
+            pendingIntent
+        )
+        android.os.Process.killProcess(android.os.Process.myPid())
     }
 
     override fun onDestroy() {
@@ -696,8 +760,14 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         const val OFFSCREEN_TEX_ID = 42
         const val BOOTH_URL = "https://fanta-filtro.seuprojeto.online/"
         const val DEBUG_SAVE_FRAMES = true
-        const val HEARTBEAT_INTERVAL_MS = 5_000L
-        const val HEARTBEAT_CHECK_DELAY_MS = 3_000L
-        const val HEARTBEAT_MAX_MISSES = 3
+        // O JS thread fica ocupado fazendo poll de frames a cada 60-150ms
+        // (ver startUsbBridge no index.html), então evaluateJavascript pode
+        // demorar mais que alguns segundos pra responder mesmo com o processo
+        // vivo e funcionando — precisamos de folga suficiente pra não confundir
+        // "thread ocupada" com "processo morto" (isso já causou um falso
+        // positivo derrubando a Activity com a câmera funcionando perfeitamente).
+        const val HEARTBEAT_INTERVAL_MS = 10_000L
+        const val HEARTBEAT_CHECK_DELAY_MS = 10_000L
+        const val HEARTBEAT_MAX_MISSES = 4
     }
 }

@@ -222,7 +222,7 @@ class MainActivity : AppCompatActivity() {
                     working = null
                     return@execute
                 }
-                val cropped = BoothAssets.coverCrop(frame, BoothAssets.VIEW_W, BoothAssets.VIEW_H)
+                val cropped = BoothAssets.coverCrop(frame, BoothAssets.VIEW_W, BoothAssets.VIEW_H, BoothAssets.CAMERA_ZOOM)
                 if (cropped !== frame) {
                     frame.recycle()
                     working = cropped

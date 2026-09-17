@@ -10,8 +10,8 @@ android {
         applicationId = "online.seuprojeto.filtrofanta"
         minSdk = 24
         targetSdk = 35
-        versionCode = 58
-        versionName = "5.4.10-native"
+        versionCode = 65
+        versionName = "5.4.17-native"
         buildConfigField("String", "SHARE_ORIGIN", "\"https://fanta-filtro.seuprojeto.online\"")
     }
     androidResources {

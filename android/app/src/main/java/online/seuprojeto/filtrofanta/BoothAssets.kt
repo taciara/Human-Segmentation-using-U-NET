@@ -3,8 +3,11 @@ package online.seuprojeto.filtrofanta
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Shader
 import android.util.LruCache
 
 class BoothAssets(context: Context) {
@@ -55,31 +58,76 @@ class BoothAssets(context: Context) {
         const val VIEW_H = 600
 
         /**
-         * Zoom da câmera no visor 4:5. 1 = cobrir o quadro sem esticar.
-         * Valores menores que 1 deixavam faixa esticada/código de barras no rodapé.
+         * Zoom da câmera no visor 4:5, aplicado ANTES da segmentação (o mask
+         * já nasce alinhado com essa imagem, sem precisar de nenhum cálculo
+         * de alinhamento depois). >1 corta mais a cena (zoom in, pessoa
+         * maior); <1 mostra mais cena ao redor (zoom out, pessoa menor),
+         * replicando a borda da câmera em vez de esticar a imagem — 0.83 =
+         * pessoa ~30% menor, testado e sem cortar nem esticar nada.
          */
         const val CAMERA_ZOOM = 1f
 
+        /**
+         * Encolhe só a silhueta da pessoa, ancorada embaixo (BoothCompositor
+         * usa cy = th, não th/2), pra sobrar espaço em cima pro Ghostface —
+         * que continua com o mesmo tamanho e posição fixos de sempre.
+         * 0.7 = pessoa com ~70% do tamanho atual.
+         */
+        const val PERSON_ZOOM = 1f
+
+        private data class CropTransform(
+            val padX: Int,
+            val padY: Int,
+            val paddedW: Int,
+            val paddedH: Int,
+            val scale: Float,
+        )
+
+        private fun computeCropTransform(fw: Int, fh: Int, tw: Int, th: Int, zoom: Float): CropTransform {
+            var padX = 0
+            var padY = 0
+            var pw = maxOf(1, fw)
+            var ph = maxOf(1, fh)
+            if (zoom < 1f && zoom > 0f) {
+                val zoomOut = 1f / zoom
+                padX = ((pw * (zoomOut - 1f)) / 2f).toInt().coerceAtLeast(0)
+                padY = ((ph * (zoomOut - 1f)) / 2f).toInt().coerceAtLeast(0)
+                pw += padX * 2
+                ph += padY * 2
+            }
+            val baseScale = maxOf(tw.toFloat() / pw, th.toFloat() / ph)
+            val scale = if (zoom > 1f) baseScale * zoom else baseScale
+            return CropTransform(padX, padY, pw, ph, scale)
+        }
+
+        /** Estende os pixels da borda pra fora (equivalente a cv2.BORDER_REPLICATE), sem esticar a imagem. */
+        private fun padReplicate(src: Bitmap, padX: Int, padY: Int): Bitmap {
+            if (padX <= 0 && padY <= 0) return src
+            val pw = src.width + padX * 2
+            val ph = src.height + padY * 2
+            val out = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
+            val c = Canvas(out)
+            val shader = BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            shader.setLocalMatrix(Matrix().apply { setTranslate(padX.toFloat(), padY.toFloat()) })
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader }
+            c.drawRect(0f, 0f, pw.toFloat(), ph.toFloat(), paint)
+            return out
+        }
+
         fun coverCrop(src: Bitmap, tw: Int, th: Int, zoom: Float = 1f): Bitmap {
-            val baseScale = maxOf(
-                tw.toFloat() / maxOf(1, src.width),
-                th.toFloat() / maxOf(1, src.height),
-            )
-            val scale = baseScale * maxOf(1f, zoom)
-            val nw = maxOf(1, (src.width * scale).toInt())
-            val nh = maxOf(1, (src.height * scale).toInt())
-            val scaled = Bitmap.createScaledBitmap(src, nw, nh, true)
-            val x = maxOf(0, (nw - tw) / 2)
-            val y = maxOf(0, (nh - th) / 2)
+            val t = computeCropTransform(src.width, src.height, tw, th, zoom)
+            val padded = padReplicate(src, t.padX, t.padY)
+            val nw = maxOf(1, (t.paddedW * t.scale).toInt())
+            val nh = maxOf(1, (t.paddedH * t.scale).toInt())
+            val scaled = Bitmap.createScaledBitmap(padded, nw, nh, true)
+            if (padded !== src) padded.recycle()
+            val x = maxOf(0, (nw - tw) / 2).coerceAtMost(maxOf(0, nw - tw))
+            val y = maxOf(0, (nh - th) / 2).coerceAtMost(maxOf(0, nh - th))
             val cw = tw.coerceAtMost(scaled.width - x)
             val ch = th.coerceAtMost(scaled.height - y)
             val out = Bitmap.createBitmap(scaled, x, y, cw, ch)
-            if (scaled !== src) scaled.recycle()
-            if (out.width == tw && out.height == th) return out
-            val filled = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
-            android.graphics.Canvas(filled).drawBitmap(out, 0f, 0f, null)
-            if (filled !== out) out.recycle()
-            return filled
+            if (scaled !== out) scaled.recycle()
+            return out
         }
 
         fun placeOverlay(overlay: Bitmap, tw: Int, th: Int, xShift: Float): Bitmap {

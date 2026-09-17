@@ -110,18 +110,23 @@ def letterbox(img, tw=WIDTH, th=HEIGHT):
 
 
 def cover_crop(img, tw, th, zoom_out=1.0):
-    if zoom_out > 1.0:
-        h0, w0 = img.shape[:2]
-        pad_x = int(w0 * (zoom_out - 1.0) / 2)
-        pad_y = int(h0 * (zoom_out - 1.0) / 2)
-        img = cv2.copyMakeBorder(img, pad_y, pad_y, pad_x, pad_x, cv2.BORDER_REPLICATE)
     h, w = img.shape[:2]
+    if zoom_out > 1.0:
+        # Não replica borda (vira faixa/código de barras). Só usa cover puro.
+        zoom_out = 1.0
     scale = max(tw / max(1, w), th / max(1, h))
     nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
     resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_AREA)
     x = max(0, (nw - tw) // 2)
     y = max(0, (nh - th) // 2)
-    return resized[y : y + th, x : x + tw]
+    x2 = min(nw, x + tw)
+    y2 = min(nh, y + th)
+    crop = resized[y:y2, x:x2]
+    if crop.shape[0] == th and crop.shape[1] == tw:
+        return crop
+    out = np.zeros((th, tw, crop.shape[2]), dtype=crop.dtype)
+    out[: crop.shape[0], : crop.shape[1]] = crop
+    return out
 
 
 def age_paper(card, pad, inner_w, inner_h):
@@ -289,9 +294,9 @@ class CameraBooth:
 
     def process(self, frame, rec, bg_name, frame_name):
         tw, th = canvas_size(frame)
-        # zoom_out > 1 dá mais campo de visão: a câmera fica perto da pessoa no
-        # totem físico, e o crop vertical/retrato deixava a pessoa grande demais.
-        frame = cover_crop(frame, tw, th, zoom_out=1.35)
+        inset = max(2, frame.shape[0] // 40)
+        frame = frame[: frame.shape[0] - inset]
+        frame = cover_crop(frame, tw, th, zoom_out=1.0)
         try:
             with self.infer_lock:
                 fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)

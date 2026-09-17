@@ -40,7 +40,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            overflow: hidden;
+            overflow: visible;
         }
         .top-logo {
             position: relative;
@@ -55,66 +55,10 @@
             width: min(72vw, 380px);
             margin-top: 0.6vh;
         }
-        .polaroid {
-            position: relative;
-            background-color: #e6dfd2;
-            background-image:
-                radial-gradient(ellipse at 16% 92%, rgba(72, 48, 28, 0.22), transparent 46%),
-                radial-gradient(ellipse at 86% 96%, rgba(50, 38, 28, 0.18), transparent 42%),
-                radial-gradient(ellipse at 50% 8%, rgba(255, 252, 245, 0.35), transparent 55%),
-                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.55'/%3E%3C/svg%3E");
-            background-blend-mode: multiply, multiply, screen, overlay;
-            padding: 14px 14px 0;
-            box-shadow:
-                0 22px 40px rgba(0,0,0,.5),
-                inset 0 1px 0 rgba(255,255,255,.35),
-                inset 0 -22px 34px rgba(62, 42, 24, 0.16),
-                inset 10px 0 22px rgba(40, 30, 20, 0.1),
-                inset -10px 0 22px rgba(40, 30, 20, 0.1);
-            border: 1px solid #cfc6b6;
-            filter: contrast(1.04) saturate(0.92);
-        }
-        .polaroid::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            z-index: 4;
-            background:
-                radial-gradient(120% 40% at 50% 100%, rgba(40, 28, 16, 0.18), transparent 70%),
-                radial-gradient(18px 14px at 8% 96%, rgba(30, 22, 14, 0.28), transparent 70%),
-                radial-gradient(22px 16px at 94% 97%, rgba(30, 22, 14, 0.22), transparent 72%);
-        }
-        .viewfinder {
-            position: relative;
+        .shot-card {
             width: 100%;
-            aspect-ratio: 4 / 5;
-            background: #111;
-            overflow: hidden;
-            z-index: 1;
-        }
-        .viewfinder > img {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: center;
-        }
-        .polaroid-footer {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 5.6rem;
-            padding: 0.35rem 0.6rem;
-        }
-        .logo-in-footer {
-            width: 58%;
-            object-fit: contain;
             display: block;
-            pointer-events: none;
-            transform: translateY(3rem);
-            margin: -2rem auto -3rem;
+            box-shadow: 0 22px 40px rgba(0,0,0,.5);
         }
         .btn-share {
             position: relative;
@@ -130,7 +74,8 @@
             border-radius: 999px;
             min-width: min(68%, 280px);
             box-shadow: 0 8px 0 #c43e00;
-            margin-top: 5.1rem;
+            margin-top: 1.4rem;
+            margin-bottom: 2rem;
         }
         .drip-wrap { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
         .drip-wrap::after {
@@ -170,14 +115,7 @@
         </div>
         <div class="top-logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta"></div>
         <div class="polaroid-stage">
-            <div class="polaroid">
-                <div class="viewfinder">
-                    <img src="{{ photo_url }}" alt="Sua foto">
-                </div>
-                <div class="polaroid-footer">
-                    <img class="logo-in-footer" src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta">
-                </div>
-            </div>
+            <img class="shot-card" src="{{ card_url }}" alt="Sua foto">
         </div>
         <button class="btn-share" id="share" type="button">COMPARTILHAR</button>
         <p class="note" id="msg" hidden></p>

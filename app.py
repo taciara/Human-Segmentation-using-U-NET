@@ -150,27 +150,46 @@ def age_paper(card, pad, inner_w, inner_h):
 
 def make_polaroid(photo_bgr):
     pad = 36
-    footer = 220
     inner_w = 840
     inner_h = int(inner_w * 5 / 4)
+    logo = cv2.imread(str(LOGO_PATH), cv2.IMREAD_UNCHANGED)
+    lw = int(inner_w * 0.58)
+    lh = 220
+    if logo is not None:
+        lh = max(1, int(logo.shape[0] * lw / max(1, logo.shape[1])))
+    overlap = int(lh * 0.32)
+    footer = lh - overlap + pad
     card_w = inner_w + pad * 2
     card_h = pad + inner_h + footer
     card = np.full((card_h, card_w, 3), (210, 223, 230), dtype=np.uint8)
     crop = cover_crop(photo_bgr, inner_w, inner_h)
     card[pad : pad + inner_h, pad : pad + inner_w] = crop
     card = age_paper(card, pad, inner_w, inner_h)
-    logo = cv2.imread(str(LOGO_PATH), cv2.IMREAD_UNCHANGED)
     if logo is not None:
-        lw = int(inner_w * 0.58)
-        lh = max(1, int(logo.shape[0] * lw / max(1, logo.shape[1])))
         logo_r = cv2.resize(logo, (lw, lh), interpolation=cv2.INTER_AREA)
         canvas = np.zeros((card_h, card_w, 4), dtype=np.uint8)
         lx = (card_w - lw) // 2
-        ly = pad + inner_h + (footer - lh) // 2
+        ly = pad + inner_h - overlap
         ly = max(0, min(card_h - lh, ly))
         canvas[ly : ly + lh, lx : lx + lw] = logo_r
         card = overlay_rgba(card, canvas)
     return card
+
+
+def crop_if_baked_polaroid(bgr):
+    """Tira moldura/logo se o JPEG já for a polaroid do app nativo."""
+    h, w = bgr.shape[:2]
+    if h < 20 or w < 20:
+        return bgr
+    if w / float(h) >= 0.74:
+        return bgr
+    pad = max(8, int(round(w * 36 / 912.0)))
+    footer = max(24, int(round(h * 220 / 1306.0)))
+    y1, y2 = pad, h - footer
+    x1, x2 = pad, w - pad
+    if y2 - y1 < 20 or x2 - x1 < 20:
+        return bgr
+    return bgr[y1:y2, x1:x2]
 
 
 def polaroid_name(name: str) -> str:
@@ -552,15 +571,16 @@ def share_page(name):
     src_path = resolve_photo(name)
     if src_path is None:
         return make_response("Foto não encontrada.", 404)
-    if src_path.parent.resolve() == FANTA_POLAROID_DIR.resolve():
+    src = cv2.imread(str(src_path))
+    if src is None:
+        return make_response("Foto não encontrada.", 404)
+    from_tablet = src_path.parent.resolve() == FANTA_POLAROID_DIR.resolve()
+    if from_tablet:
         card_name = name
     else:
         card = polaroid_name(name)
         card_path = resolve_photo(card)
         if card_path is None:
-            src = cv2.imread(str(src_path))
-            if src is None:
-                return make_response("Foto não encontrada.", 404)
             cv2.imwrite(str(PHOTOS_DIR / card), make_polaroid(src))
             card_name = card
         else:
@@ -579,6 +599,15 @@ def photo_file(name):
     path = resolve_photo(name)
     if path is None:
         return make_response("Arquivo inválido.", 404)
+    if request.args.get("inner") == "1":
+        img = cv2.imread(str(path))
+        if img is None:
+            return make_response("Arquivo inválido.", 404)
+        inner = crop_if_baked_polaroid(img)
+        ok, buf = cv2.imencode(".jpg", inner, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        if not ok:
+            return make_response("Arquivo inválido.", 404)
+        return Response(buf.tobytes(), mimetype="image/jpeg")
     return send_from_directory(path.parent, path.name)
 
 

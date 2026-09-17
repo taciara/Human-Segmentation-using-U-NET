@@ -324,7 +324,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val bytes = ByteArrayOutputStream().use { out ->
                     val scaled = scaleForUpload(card)
-                    scaled.compress(Bitmap.CompressFormat.JPEG, 70, out)
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 88, out)
                     if (scaled !== card) scaled.recycle()
                     out.toByteArray()
                 }
@@ -346,7 +346,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scaleForUpload(src: Bitmap): Bitmap {
-        val maxSide = 720
+        val maxSide = 1100
         val longest = maxOf(src.width, src.height)
         if (longest <= maxSide) return src
         val scale = maxSide / longest.toFloat()

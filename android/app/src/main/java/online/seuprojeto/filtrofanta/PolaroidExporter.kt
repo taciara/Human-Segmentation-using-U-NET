@@ -11,8 +11,8 @@ object PolaroidExporter {
     /** Monta JPEG final: papel Polaroid + foto 4:5 + logo inteiro (sem cortar o pingente). */
     fun wrapShot(context: Context, inner: Bitmap): Bitmap {
         val pad = 36
-        val innerW = 840
-        val innerH = (innerW * 5 / 4)
+        val innerW = inner.width
+        val innerH = inner.height
         val cardW = innerW + pad * 2
         val logo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_fanta)
         val lw = (innerW * 0.58f).toInt()
@@ -23,9 +23,8 @@ object PolaroidExporter {
         val card = Bitmap.createBitmap(cardW, cardH, Bitmap.Config.ARGB_8888)
         val c = Canvas(card)
         c.drawColor(Color.rgb(230, 223, 210))
-        val scaled = Bitmap.createScaledBitmap(inner, innerW, innerH, true)
-        c.drawBitmap(scaled, pad.toFloat(), pad.toFloat(), null)
-        scaled.recycle()
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        c.drawBitmap(inner, pad.toFloat(), pad.toFloat(), paint)
         if (logo != null) {
             val logoR = Bitmap.createScaledBitmap(logo, lw, lh, true)
             val lx = (cardW - lw) / 2f

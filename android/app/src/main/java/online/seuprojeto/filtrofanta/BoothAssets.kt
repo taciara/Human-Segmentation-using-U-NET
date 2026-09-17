@@ -54,8 +54,11 @@ class BoothAssets(context: Context) {
     }
 
     companion object {
-        const val VIEW_W = 480
-        const val VIEW_H = 600
+        /** Preview ao vivo (leve). A foto final usa VIEW_W/H. */
+        const val PREVIEW_W = 480
+        const val PREVIEW_H = 600
+        const val VIEW_W = 840
+        const val VIEW_H = 1050
 
         /**
          * Zoom da câmera no visor 4:5, aplicado ANTES da segmentação (o mask
@@ -112,6 +115,16 @@ class BoothAssets(context: Context) {
             val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader }
             c.drawRect(0f, 0f, pw.toFloat(), ph.toFloat(), paint)
             return out
+        }
+
+        fun coverSize(srcW: Int, srcH: Int): Pair<Int, Int> {
+            var th = maxOf(1, srcH)
+            var tw = th * 4 / 5
+            if (tw > srcW) {
+                tw = maxOf(1, srcW)
+                th = tw * 5 / 4
+            }
+            return tw to th
         }
 
         fun coverCrop(src: Bitmap, tw: Int, th: Int, zoom: Float = 1f): Bitmap {

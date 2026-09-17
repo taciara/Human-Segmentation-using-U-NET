@@ -164,12 +164,44 @@
                     android:layout_height="wrap_content"
                     android:background="#111111">
 
-                    <ImageView
-                        android:id="@+id/shotImg"
+                    <FrameLayout
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:contentDescription="Sua foto"
-                        android:scaleType="centerCrop" />
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/shotImg"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:contentDescription="Sua foto"
+                            android:scaleType="centerCrop" />
+
+                        <LinearLayout
+                            android:id="@+id/prepareOverlay"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="#99000000"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <ProgressBar
+                                android:layout_width="42dp"
+                                android:layout_height="42dp"
+                                android:indeterminateTint="@color/fanta_orange" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:fontFamily="@font/fanta_sans_regular"
+                                android:gravity="center"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:text="Preparando sua foto…"
+                                android:textColor="#FFFFFFFF"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                    </FrameLayout>
                 </online.seuprojeto.filtrofanta.AspectRatioFrameLayout>
 
                 <View

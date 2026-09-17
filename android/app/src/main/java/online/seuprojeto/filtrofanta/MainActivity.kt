@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var screenReady: LinearLayout
     private lateinit var preview: ImageView
     private lateinit var shotImg: ImageView
+    private lateinit var prepareOverlay: View
     private lateinit var qrImg: ImageView
     private lateinit var qrWait: View
     private lateinit var loader: LinearLayout
@@ -62,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var compositor: BoothCompositor
     private var uvc: UvcCameraController? = null
 
+    private var lastRaw: Bitmap? = null
     private var lastPreview: Bitmap? = null
     private var lastSavedUri: Uri? = null
     private var lastPolaroid: Bitmap? = null
@@ -69,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     private var lastQr: Bitmap? = null
     private var lastShareUrl: String? = null
     private var shareJob = 0
+    private var enhanceJob = 0
     private var hasLiveFeed = false
     private var holdLive = false
     private var frozenShot: Bitmap? = null
@@ -119,6 +122,7 @@ class MainActivity : AppCompatActivity() {
         screenReady = findViewById(R.id.screenReady)
         preview = findViewById(R.id.preview)
         shotImg = findViewById(R.id.shotImg)
+        prepareOverlay = findViewById(R.id.prepareOverlay)
         qrImg = findViewById(R.id.qrImg)
         qrWait = findViewById(R.id.qrWait)
         loader = findViewById(R.id.loader)
@@ -142,6 +146,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetToCapture() {
         shareJob += 1
+        enhanceJob += 1
         lastSavedUri = null
         lastShareUrl = null
         lastPolaroid?.recycle()
@@ -152,6 +157,7 @@ class MainActivity : AppCompatActivity() {
         qrWait.visibility = View.VISIBLE
         btnSnap.isEnabled = true
         btnShare.isEnabled = false
+        prepareOverlay.visibility = View.GONE
         showScreen(capture = true, result = false, ready = false)
     }
 
@@ -222,21 +228,31 @@ class MainActivity : AppCompatActivity() {
                     working = null
                     return@execute
                 }
-                val cropped = BoothAssets.coverCrop(frame, BoothAssets.VIEW_W, BoothAssets.VIEW_H, BoothAssets.CAMERA_ZOOM)
-                if (cropped !== frame) {
-                    frame.recycle()
+                val live = downscaleForPreview(frame)
+                if (live !== frame) {
+                    lastRaw?.recycle()
+                    lastRaw = frame
+                    working = live
+                } else {
+                    lastRaw?.recycle()
+                    lastRaw = frame.copy(Bitmap.Config.ARGB_8888, false)
+                }
+                val cropped = BoothAssets.coverCrop(
+                    live,
+                    BoothAssets.PREVIEW_W,
+                    BoothAssets.PREVIEW_H,
+                    BoothAssets.CAMERA_ZOOM,
+                )
+                if (cropped !== live) {
+                    live.recycle()
                     working = cropped
                 }
-                // Segmentação numa cópia menor: a IA nem olha pra resolução
-                // cheia, e a máscara é reamostrada de volta (compose já faz
-                // isso via sampleBilinear). Corta bastante do delay do preview
-                // sem perder nitidez na foto final (que usa `cropped` cheio).
-                val segW = BoothAssets.VIEW_W / 2
-                val segH = BoothAssets.VIEW_H / 2
+                val segW = BoothAssets.PREVIEW_W / 2
+                val segH = BoothAssets.PREVIEW_H / 2
                 val segInput = Bitmap.createScaledBitmap(cropped, segW, segH, true)
                 val mask = segmenter.personMask(segInput)
                 segInput.recycle()
-                val composed = compositor.compose(cropped, mask.data, mask.width, mask.height)
+                val composed = compositor.compose(cropped, mask.data, mask.width, mask.height, highQuality = false)
                 if (cropped !== composed) cropped.recycle()
                 working = null
                 mainHandler.post {
@@ -261,7 +277,7 @@ class MainActivity : AppCompatActivity() {
         if (!btnSnap.isEnabled) return
         btnSnap.isEnabled = false
         countdown.visibility = View.VISIBLE
-        runCountdownStep(3) {
+        runCountdownStep(5) {
             countdown.visibility = View.GONE
             capturePhoto()
         }
@@ -273,39 +289,102 @@ class MainActivity : AppCompatActivity() {
             return
         }
         countdownNum.text = n.toString()
-        mainHandler.postDelayed({ runCountdownStep(n - 1, onDone) }, 900)
+        mainHandler.postDelayed({ runCountdownStep(n - 1, onDone) }, 1000)
     }
 
     private fun capturePhoto() {
-        val inner = lastPreview ?: run {
+        val previewShot = lastPreview ?: run {
             Toast.makeText(this, "Aguardando primeiro frame da EMEET…", Toast.LENGTH_SHORT).show()
             btnSnap.isEnabled = true
             return
         }
-        val card = PolaroidExporter.wrapShot(this, inner)
-        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val fileName = "foto_${stamp}_${System.currentTimeMillis() % 1000}.jpg"
-        try {
-            lastPolaroid?.recycle()
-            lastPolaroid = card
-            lastShareUrl = "${BuildConfig.SHARE_ORIGIN.trimEnd('/')}/p/$fileName"
-            lastQr?.recycle()
-            lastQr = QrEncoder.encode(lastShareUrl!!, 280)
-            frozenShot?.recycle()
-            frozenShot = inner.copy(Bitmap.Config.ARGB_8888, false)
-            shotImg.setImageBitmap(frozenShot)
-            qrImg.setImageBitmap(lastQr)
-            qrWait.visibility = View.GONE
-            btnShare.isEnabled = false
-            showScreen(capture = false, result = true, ready = false)
-            startShareUpload(card, fileName)
-            mainHandler.postDelayed({ btnShare.isEnabled = true }, 150)
-        } catch (err: Exception) {
-            card.recycle()
-            Toast.makeText(this, "Falha ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
-            btnSnap.isEnabled = true
-            showScreen(capture = true, result = false, ready = false)
+        holdLive = true
+        val job = ++enhanceJob
+        frozenShot?.recycle()
+        frozenShot = previewShot.copy(Bitmap.Config.ARGB_8888, false)
+        shotImg.setImageBitmap(frozenShot)
+        prepareOverlay.visibility = View.VISIBLE
+        btnShare.isEnabled = false
+        showScreen(capture = false, result = true, ready = false)
+
+        processExecutor.execute {
+            var source: Bitmap? = null
+            try {
+                source = uvc?.snapshotFull() ?: lastRaw?.copy(Bitmap.Config.ARGB_8888, false)
+                    ?: previewShot.copy(Bitmap.Config.ARGB_8888, false)
+                val inner = renderStill(source)
+                if (source !== inner) source.recycle()
+                source = null
+                val card = PolaroidExporter.wrapShot(this, inner)
+                val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                val fileName = "foto_${stamp}_${System.currentTimeMillis() % 1000}.jpg"
+                mainHandler.post {
+                    if (job != enhanceJob) {
+                        card.recycle()
+                        inner.recycle()
+                        return@post
+                    }
+                    try {
+                        lastPolaroid?.recycle()
+                        lastPolaroid = card
+                        lastShareUrl = "${BuildConfig.SHARE_ORIGIN.trimEnd('/')}/p/$fileName"
+                        lastQr?.recycle()
+                        lastQr = QrEncoder.encode(lastShareUrl!!, 280)
+                        frozenShot?.recycle()
+                        frozenShot = inner
+                        shotImg.setImageBitmap(frozenShot)
+                        prepareOverlay.visibility = View.GONE
+                        qrImg.setImageBitmap(lastQr)
+                        qrWait.visibility = View.GONE
+                        startShareUpload(card, fileName)
+                        btnShare.isEnabled = true
+                    } catch (err: Exception) {
+                        card.recycle()
+                        inner.recycle()
+                        prepareOverlay.visibility = View.GONE
+                        Toast.makeText(this, "Falha ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
+                        btnSnap.isEnabled = true
+                        showScreen(capture = true, result = false, ready = false)
+                    }
+                }
+            } catch (err: Exception) {
+                source?.recycle()
+                Log.e(TAG, "capture", err)
+                mainHandler.post {
+                    if (job != enhanceJob) return@post
+                    prepareOverlay.visibility = View.GONE
+                    Toast.makeText(this, "Falha ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
+                    btnSnap.isEnabled = true
+                    showScreen(capture = true, result = false, ready = false)
+                }
+            }
         }
+    }
+
+    private fun renderStill(frame: Bitmap): Bitmap {
+        val (tw, th) = BoothAssets.coverSize(frame.width, frame.height)
+        val cropped = BoothAssets.coverCrop(frame, tw, th, BoothAssets.CAMERA_ZOOM)
+        val segW = maxOf(160, tw / 2)
+        val segH = maxOf(200, th / 2)
+        val segInput = Bitmap.createScaledBitmap(cropped, segW, segH, true)
+        val mask = segmenter.personMask(segInput)
+        segInput.recycle()
+        val composed = compositor.compose(cropped, mask.data, mask.width, mask.height, highQuality = true)
+        if (cropped !== composed && cropped !== frame) cropped.recycle()
+        return composed
+    }
+
+    private fun downscaleForPreview(src: Bitmap): Bitmap {
+        val maxSide = 640
+        val longest = maxOf(src.width, src.height)
+        if (longest <= maxSide) return src
+        val scale = maxSide / longest.toFloat()
+        return Bitmap.createScaledBitmap(
+            src,
+            maxOf(1, (src.width * scale).toInt()),
+            maxOf(1, (src.height * scale).toInt()),
+            true,
+        )
     }
 
     private fun saveToGallery(card: Bitmap, fileName: String): Uri? {
@@ -318,7 +397,7 @@ class MainActivity : AppCompatActivity() {
             val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
             if (uri != null) {
                 contentResolver.openOutputStream(uri)?.use { out ->
-                    card.compress(Bitmap.CompressFormat.JPEG, 92, out)
+                    card.compress(Bitmap.CompressFormat.JPEG, 95, out)
                 }
             }
             uri
@@ -328,7 +407,7 @@ class MainActivity : AppCompatActivity() {
             val folder = java.io.File(dir, "FiltroFanta").apply { mkdirs() }
             val file = java.io.File(folder, fileName)
             file.outputStream().use { out ->
-                card.compress(Bitmap.CompressFormat.JPEG, 92, out)
+                card.compress(Bitmap.CompressFormat.JPEG, 95, out)
             }
             Uri.fromFile(file)
         }
@@ -340,7 +419,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val bytes = ByteArrayOutputStream().use { out ->
                     val scaled = scaleForUpload(card)
-                    scaled.compress(Bitmap.CompressFormat.JPEG, 88, out)
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 93, out)
                     if (scaled !== card) scaled.recycle()
                     out.toByteArray()
                 }
@@ -362,7 +441,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scaleForUpload(src: Bitmap): Bitmap {
-        val maxSide = 1100
+        val maxSide = 2000
         val longest = maxOf(src.width, src.height)
         if (longest <= maxSide) return src
         val scale = maxSide / longest.toFloat()
@@ -399,6 +478,7 @@ class MainActivity : AppCompatActivity() {
         if (::compositor.isInitialized) compositor.release()
         if (::segmenter.isInitialized) segmenter.close()
         lastPreview?.recycle()
+        lastRaw?.recycle()
         frozenShot?.recycle()
         lastPolaroid?.recycle()
         lastQr?.recycle()

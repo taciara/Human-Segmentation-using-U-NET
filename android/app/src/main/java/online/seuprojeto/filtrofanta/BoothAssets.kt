@@ -54,36 +54,30 @@ class BoothAssets(context: Context) {
         const val VIEW_W = 480
         const val VIEW_H = 600
 
-        fun coverCrop(src: Bitmap, tw: Int, th: Int, zoomOut: Float = 1.35f): Bitmap {
-            var bmp = src
-            if (zoomOut > 1f) {
-                val padX = (bmp.width * (zoomOut - 1f) / 2f).toInt()
-                val padY = (bmp.height * (zoomOut - 1f) / 2f).toInt()
-                val padded = Bitmap.createBitmap(
-                    bmp.width + padX * 2,
-                    bmp.height + padY * 2,
-                    Bitmap.Config.ARGB_8888,
-                )
-                Canvas(padded).drawBitmap(bmp, padX.toFloat(), padY.toFloat(), null)
-                if (padded !== bmp) bmp.recycle()
-                bmp = padded
-            }
-            val scale = maxOf(tw.toFloat() / bmp.width, th.toFloat() / bmp.height)
-            val nw = maxOf(1, (bmp.width * scale).toInt())
-            val nh = maxOf(1, (bmp.height * scale).toInt())
-            val scaled = Bitmap.createScaledBitmap(bmp, nw, nh, true)
-            if (scaled !== bmp) bmp.recycle()
+        fun coverCrop(src: Bitmap, tw: Int, th: Int): Bitmap {
+            val scale = maxOf(tw.toFloat() / maxOf(1, src.width), th.toFloat() / maxOf(1, src.height))
+            val nw = maxOf(1, (src.width * scale).toInt())
+            val nh = maxOf(1, (src.height * scale).toInt())
+            val scaled = Bitmap.createScaledBitmap(src, nw, nh, true)
             val x = maxOf(0, (nw - tw) / 2)
             val y = maxOf(0, (nh - th) / 2)
-            val out = Bitmap.createBitmap(scaled, x, y, tw.coerceAtMost(scaled.width), th.coerceAtMost(scaled.height))
-            if (out !== scaled) scaled.recycle()
+            val cw = tw.coerceAtMost(scaled.width - x)
+            val ch = th.coerceAtMost(scaled.height - y)
+            val out = Bitmap.createBitmap(scaled, x, y, cw, ch)
+            if (out.width != tw || out.height != th) {
+                val filled = Bitmap.createScaledBitmap(out, tw, th, true)
+                if (filled !== out) out.recycle()
+                if (scaled !== src && scaled !== filled) scaled.recycle()
+                return filled
+            }
+            if (scaled !== src && scaled !== out) scaled.recycle()
             return out
         }
 
         fun placeOverlay(overlay: Bitmap, tw: Int, th: Int, xShift: Float): Bitmap {
             val canvas = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
             val c = Canvas(canvas)
-            val scale = (th * 0.95f) / overlay.height
+            val scale = th / overlay.height.toFloat()
             val nw = maxOf(1, (overlay.width * scale).toInt())
             val nh = maxOf(1, (overlay.height * scale).toInt())
             val scaled = Bitmap.createScaledBitmap(overlay, nw, nh, true)

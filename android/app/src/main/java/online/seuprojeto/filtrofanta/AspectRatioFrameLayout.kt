@@ -3,7 +3,6 @@ package online.seuprojeto.filtrofanta
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.FrameLayout
-import kotlin.math.min
 
 /** Viewfinder `.viewfinder { aspect-ratio: 4 / 5 }` */
 class AspectRatioFrameLayout @JvmOverloads constructor(
@@ -13,12 +12,14 @@ class AspectRatioFrameLayout @JvmOverloads constructor(
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val width = MeasureSpec.getSize(widthMeasureSpec)
-        var height = if (width > 0) width * 5 / 4 else 0
+        val maxW = MeasureSpec.getSize(widthMeasureSpec)
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
-        val maxHeight = MeasureSpec.getSize(heightMeasureSpec)
-        if (heightMode != MeasureSpec.UNSPECIFIED && maxHeight > 0) {
-            height = min(height, maxHeight)
+        val maxH = MeasureSpec.getSize(heightMeasureSpec)
+        var width = if (maxW > 0) maxW else suggestedMinimumWidth
+        var height = if (width > 0) width * 5 / 4 else 0
+        if (heightMode != MeasureSpec.UNSPECIFIED && maxH > 0 && height > maxH) {
+            height = maxH
+            width = height * 4 / 5
         }
         super.onMeasure(
             MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),

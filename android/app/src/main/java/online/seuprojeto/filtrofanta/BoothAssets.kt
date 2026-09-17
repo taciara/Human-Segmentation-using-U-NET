@@ -54,8 +54,17 @@ class BoothAssets(context: Context) {
         const val VIEW_W = 480
         const val VIEW_H = 600
 
-        fun coverCrop(src: Bitmap, tw: Int, th: Int): Bitmap {
-            val scale = maxOf(tw.toFloat() / maxOf(1, src.width), th.toFloat() / maxOf(1, src.height))
+        /**
+         * Fator de aproximação aplicado no enquadramento da câmera USB.
+         * A EMEET tem campo de visão largo; com a pessoa a 70-80cm da tela
+         * ela aparece pequena no centro do quadro. >1 corta mais a cena
+         * (zoom in / pessoa maior), <1 mostra mais cena ao redor.
+         */
+        const val CAMERA_ZOOM = 0.83f
+
+        fun coverCrop(src: Bitmap, tw: Int, th: Int, zoom: Float = 1f): Bitmap {
+            val baseScale = maxOf(tw.toFloat() / maxOf(1, src.width), th.toFloat() / maxOf(1, src.height))
+            val scale = baseScale * zoom
             val nw = maxOf(1, (src.width * scale).toInt())
             val nh = maxOf(1, (src.height * scale).toInt())
             val scaled = Bitmap.createScaledBitmap(src, nw, nh, true)

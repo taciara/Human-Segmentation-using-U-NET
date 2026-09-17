@@ -73,9 +73,16 @@ class SegmentationEngine(context: Context) {
             return out
         }
 
-        fun sampleAlpha(mask: FloatArray, mw: Int, mh: Int, x: Int, y: Int, tw: Int, th: Int): Float {
-            val sx = (x.toFloat() / tw * mw).toInt().coerceIn(0, mw - 1)
-            val sy = (y.toFloat() / th * mh).toInt().coerceIn(0, mh - 1)
+        /**
+         * srcX/srcY devem estar no espaço de coordenadas do frame ORIGINAL
+         * (mesmo frame que gerou a máscara), não no espaço da imagem já
+         * cortada/composta. O chamador é responsável por desfazer o
+         * crop+zoom antes de amostrar, senão a máscara fica desalinhada
+         * com a imagem (pessoa "vazando" para fora do recorte).
+         */
+        fun sampleAlpha(mask: FloatArray, mw: Int, mh: Int, srcX: Float, srcY: Float, fw: Int, fh: Int): Float {
+            val sx = (srcX / fw * mw).toInt().coerceIn(0, mw - 1)
+            val sy = (srcY / fh * mh).toInt().coerceIn(0, mh - 1)
             return mask[sy * mw + sx]
         }
 

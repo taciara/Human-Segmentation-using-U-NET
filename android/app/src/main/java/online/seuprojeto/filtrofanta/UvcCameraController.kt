@@ -176,7 +176,7 @@ class UvcCameraController(
         if (sizes.isNullOrEmpty()) return null
         val mjpeg = sizes.filter { it.type == UVCCamera.FRAME_FORMAT_MJPEG }
         val pool = if (mjpeg.isNotEmpty()) mjpeg else sizes
-        val prefer = listOf(320 to 240, 640 to 480, 1280 to 720, 800 to 600)
+        val prefer = listOf(640 to 480, 800 to 600, 1280 to 720, 320 to 240)
         for ((w, h) in prefer) {
             pool.firstOrNull { it.width == w && it.height == h }?.let { return it }
         }
@@ -268,7 +268,7 @@ class UvcCameraController(
         }
         val rawOut = ByteArrayOutputStream()
         val yuv = YuvImage(data, ImageFormat.NV21, w, h, null)
-        if (!yuv.compressToJpeg(Rect(0, 0, w, h), 62, rawOut)) return
+        if (!yuv.compressToJpeg(Rect(0, 0, w, h), 80, rawOut)) return
         var bmp = BitmapFactory.decodeByteArray(rawOut.toByteArray(), 0, rawOut.size()) ?: return
         if (maxOf(bmp.width, bmp.height) > 720) {
             val scale = 720f / maxOf(bmp.width, bmp.height)

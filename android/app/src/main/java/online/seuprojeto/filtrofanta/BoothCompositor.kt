@@ -9,7 +9,10 @@ class BoothCompositor(private val assets: BoothAssets) {
     fun compose(frame: Bitmap, mask: FloatArray, maskW: Int, maskH: Int): Bitmap {
         val tw = BoothAssets.VIEW_W
         val th = BoothAssets.VIEW_H
-        val cropped = BoothAssets.coverCrop(frame, tw, th)
+        val fw = frame.width
+        val fh = frame.height
+        val zoom = BoothAssets.CAMERA_ZOOM
+        val cropped = BoothAssets.coverCrop(frame, tw, th, zoom)
         val sceneBg = sceneCache ?: assets.loadScene(tw, th).also { sceneCache = it }
 
         val alpha = SegmentationEngine.refineAlpha(mask, maskW, maskH)
@@ -19,10 +22,19 @@ class BoothCompositor(private val assets: BoothAssets) {
         val bgPixels = IntArray(tw * th)
         sceneBg.getPixels(bgPixels, 0, tw, 0, 0, tw, th)
 
+        // Mesma transformação de coverCrop(frame, tw, th, zoom), para que a
+        // amostra da máscara caia exatamente sobre o pixel correspondente
+        // do frame original que gerou essa máscara.
+        val scale = maxOf(tw.toFloat() / fw, th.toFloat() / fh) * zoom
+        val cropX = (fw * scale - tw) / 2f
+        val cropY = (fh * scale - th) / 2f
+
         for (y in 0 until th) {
             for (x in 0 until tw) {
                 val i = y * tw + x
-                val a = SegmentationEngine.sampleAlpha(alpha, maskW, maskH, x, y, tw, th)
+                val srcXf = (x + cropX) / scale
+                val srcYf = (y + cropY) / scale
+                val a = SegmentationEngine.sampleAlpha(alpha, maskW, maskH, srcXf, srcYf, fw, fh)
                 val p = pixels[i]
                 val gray = SegmentationEngine.toGray(Color.blue(p), Color.green(p), Color.red(p))
                 val bg = bgPixels[i]

@@ -227,7 +227,15 @@ class MainActivity : AppCompatActivity() {
                     frame.recycle()
                     working = cropped
                 }
-                val mask = segmenter.personMask(cropped)
+                // Segmentação numa cópia menor: a IA nem olha pra resolução
+                // cheia, e a máscara é reamostrada de volta (compose já faz
+                // isso via sampleBilinear). Corta bastante do delay do preview
+                // sem perder nitidez na foto final (que usa `cropped` cheio).
+                val segW = BoothAssets.VIEW_W / 2
+                val segH = BoothAssets.VIEW_H / 2
+                val segInput = Bitmap.createScaledBitmap(cropped, segW, segH, true)
+                val mask = segmenter.personMask(segInput)
+                segInput.recycle()
                 val composed = compositor.compose(cropped, mask.data, mask.width, mask.height)
                 if (cropped !== composed) cropped.recycle()
                 working = null

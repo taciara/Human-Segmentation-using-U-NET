@@ -3,6 +3,7 @@ package online.seuprojeto.filtrofanta
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.SurfaceTexture
@@ -246,29 +247,38 @@ class UvcCameraController(
     }
 
     private fun processNv21(data: ByteArray, n: Int) {
-        val pixels = n * 2 / 3
         var w = previewW
         var h = previewH
-        if (w * h != pixels) {
-            when (pixels) {
-                640 * 480 -> {
-                    w = 640
-                    h = 480
+        val needed = w * h * 3 / 2
+        val nv21 = when {
+            n >= needed -> data
+            else -> {
+                val pixels = n * 2 / 3
+                when (pixels) {
+                    640 * 480 -> {
+                        w = 640
+                        h = 480
+                    }
+                    1280 * 720 -> {
+                        w = 1280
+                        h = 720
+                    }
+                    320 * 240 -> {
+                        w = 320
+                        h = 240
+                    }
+                    else -> return
                 }
-                1280 * 720 -> {
-                    w = 1280
-                    h = 720
-                }
-                320 * 240 -> {
-                    w = 320
-                    h = 240
-                }
-                else -> return
+                data
             }
         }
+        val size = w * h * 3 / 2
+        if (nv21.size < size) return
+        val plane = if (nv21.size == size) nv21 else nv21.copyOf(size)
         val rawOut = ByteArrayOutputStream()
-        val yuv = YuvImage(data, ImageFormat.NV21, w, h, null)
-        if (!yuv.compressToJpeg(Rect(0, 0, w, h), 80, rawOut)) return
+        val yuv = YuvImage(plane, ImageFormat.NV21, w, h, null)
+        val inset = maxOf(2, h / 40)
+        if (!yuv.compressToJpeg(Rect(0, 0, w, h - inset), 82, rawOut)) return
         var bmp = BitmapFactory.decodeByteArray(rawOut.toByteArray(), 0, rawOut.size()) ?: return
         if (maxOf(bmp.width, bmp.height) > 720) {
             val scale = 720f / maxOf(bmp.width, bmp.height)
@@ -278,7 +288,10 @@ class UvcCameraController(
             if (scaled !== bmp) bmp.recycle()
             bmp = scaled
         }
-        mainHandler.post { onFrameBitmap(bmp) }
+        val mirror = Matrix().apply { preScale(-1f, 1f) }
+        val flipped = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, mirror, true)
+        if (flipped !== bmp) bmp.recycle()
+        mainHandler.post { onFrameBitmap(flipped) }
     }
 
     companion object {

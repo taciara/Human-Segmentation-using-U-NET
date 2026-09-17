@@ -55,16 +55,17 @@ class BoothAssets(context: Context) {
         const val VIEW_H = 600
 
         /**
-         * Fator de aproximação aplicado no enquadramento da câmera USB.
-         * A EMEET tem campo de visão largo; com a pessoa a 70-80cm da tela
-         * ela aparece pequena no centro do quadro. >1 corta mais a cena
-         * (zoom in / pessoa maior), <1 mostra mais cena ao redor.
+         * Zoom da câmera no visor 4:5. 1 = cobrir o quadro sem esticar.
+         * Valores menores que 1 deixavam faixa esticada/código de barras no rodapé.
          */
-        const val CAMERA_ZOOM = 0.83f
+        const val CAMERA_ZOOM = 1f
 
         fun coverCrop(src: Bitmap, tw: Int, th: Int, zoom: Float = 1f): Bitmap {
-            val baseScale = maxOf(tw.toFloat() / maxOf(1, src.width), th.toFloat() / maxOf(1, src.height))
-            val scale = baseScale * zoom
+            val baseScale = maxOf(
+                tw.toFloat() / maxOf(1, src.width),
+                th.toFloat() / maxOf(1, src.height),
+            )
+            val scale = baseScale * maxOf(1f, zoom)
             val nw = maxOf(1, (src.width * scale).toInt())
             val nh = maxOf(1, (src.height * scale).toInt())
             val scaled = Bitmap.createScaledBitmap(src, nw, nh, true)
@@ -73,14 +74,12 @@ class BoothAssets(context: Context) {
             val cw = tw.coerceAtMost(scaled.width - x)
             val ch = th.coerceAtMost(scaled.height - y)
             val out = Bitmap.createBitmap(scaled, x, y, cw, ch)
-            if (out.width != tw || out.height != th) {
-                val filled = Bitmap.createScaledBitmap(out, tw, th, true)
-                if (filled !== out) out.recycle()
-                if (scaled !== src && scaled !== filled) scaled.recycle()
-                return filled
-            }
-            if (scaled !== src && scaled !== out) scaled.recycle()
-            return out
+            if (scaled !== src) scaled.recycle()
+            if (out.width == tw && out.height == th) return out
+            val filled = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(filled).drawBitmap(out, 0f, 0f, null)
+            if (filled !== out) out.recycle()
+            return filled
         }
 
         fun placeOverlay(overlay: Bitmap, tw: Int, th: Int, xShift: Float): Bitmap {

@@ -25,7 +25,7 @@ class BoothCompositor(private val assets: BoothAssets) {
         // Mesma transformação de coverCrop(frame, tw, th, zoom), para que a
         // amostra da máscara caia exatamente sobre o pixel correspondente
         // do frame original que gerou essa máscara.
-        val scale = maxOf(tw.toFloat() / fw, th.toFloat() / fh) * zoom
+        val scale = maxOf(tw.toFloat() / fw, th.toFloat() / fh) * maxOf(1f, zoom)
         val cropX = (fw * scale - tw) / 2f
         val cropY = (fh * scale - th) / 2f
 

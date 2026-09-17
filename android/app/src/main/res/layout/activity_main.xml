@@ -2,20 +2,92 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FF6A00">
+    android:background="#000000">
 
     <TextureView
         android:id="@+id/uvc"
-        android:layout_width="640px"
-        android:layout_height="480px"
+        android:layout_width="2dp"
+        android:layout_height="2dp"
         android:layout_gravity="bottom|start"
-        android:visibility="invisible"
         android:importantForAccessibility="no" />
 
-    <WebView
-        android:id="@+id/web"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="12dp"
+        android:paddingBottom="8dp">
+
+        <FrameLayout
+            android:id="@+id/polaroidCard"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_weight="1"
+            android:background="@drawable/polaroid_card"
+            android:elevation="12dp"
+            android:padding="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:id="@+id/viewfinder"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="#111111">
+
+                    <ImageView
+                        android:id="@+id/preview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="Preview do filtro"
+                        android:scaleType="centerCrop" />
+                </FrameLayout>
+
+                <ImageView
+                    android:id="@+id/polaroidLogo"
+                    android:layout_width="match_parent"
+                    android:layout_height="72dp"
+                    android:layout_gravity="center_horizontal"
+                    android:contentDescription="Logo Fanta"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="4dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/logo_fanta" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingStart="16dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="16dp"
+            android:text="Iniciando…"
+            android:textColor="#AAAAAA"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btnCapture"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="12dp"
+            android:backgroundTint="#FF6A00"
+            android:text="CAPTURAR FOTO"
+            android:textAllCaps="true"
+            android:textStyle="bold" />
+    </LinearLayout>
 
     <FrameLayout
         android:id="@+id/splash"
@@ -45,7 +117,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="Carregando photobooth…"
+                android:gravity="center"
+                android:text="Carregando IA local…"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp" />
         </LinearLayout>

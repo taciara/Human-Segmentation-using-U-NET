@@ -10,13 +10,19 @@ android {
         applicationId = "online.seuprojeto.filtrofanta"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "4.0"
+        versionCode = 15
+        versionName = "5.1.0-native"
+    }
+    androidResources {
+        noCompress += listOf("tflite")
     }
     buildTypes {
         release {
             isMinifyEnabled = false
         }
+    }
+    buildFeatures {
+        buildConfig = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -28,6 +34,6 @@ android {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.webkit:webkit:1.12.1")
+    implementation("com.google.mediapipe:tasks-vision:0.10.14")
     implementation("com.herohan:UVCAndroid:1.0.13")
 }

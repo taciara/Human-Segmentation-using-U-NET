@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="fanta_orange">#FF6A00</color>
+    <color name="fanta_orange_dark">#C43E00</color>
+    <color name="fanta_blue">#1C4CFF</color>
+    <color name="polaroid_paper">#E6DFD2</color>
+    <color name="ink">#111111</color>
+</resources>

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.hardware.usb.UsbManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -18,6 +19,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -30,11 +32,23 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var screenCapture: LinearLayout
+    private lateinit var screenResult: LinearLayout
+    private lateinit var screenReady: LinearLayout
     private lateinit var preview: ImageView
+    private lateinit var shotImg: ImageView
+    private lateinit var readyThumb: ImageView
+    private lateinit var loader: LinearLayout
     private lateinit var statusText: TextView
+    private lateinit var countdown: FrameLayout
+    private lateinit var countdownNum: TextView
     private lateinit var splash: FrameLayout
     private lateinit var splashStatus: TextView
     private lateinit var uvcTexture: TextureView
+    private lateinit var btnSnap: Button
+    private lateinit var btnShare: Button
+    private lateinit var btnShareReady: Button
+    private lateinit var btnAgain: Button
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val processExecutor = Executors.newSingleThreadExecutor()
@@ -46,18 +60,19 @@ class MainActivity : AppCompatActivity() {
     private var uvc: UvcCameraController? = null
 
     private var lastPreview: Bitmap? = null
+    private var lastSavedUri: Uri? = null
+    private var hasLiveFeed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        preview = findViewById(R.id.preview)
-        statusText = findViewById(R.id.statusText)
-        splash = findViewById(R.id.splash)
-        splashStatus = findViewById(R.id.splashStatus)
-        uvcTexture = findViewById(R.id.uvc)
-        findViewById<Button>(R.id.btnCapture).setOnClickListener { capturePhoto() }
-
+        bindViews()
         title = "Filtro Fanta ${BuildConfig.VERSION_NAME}"
+
+        btnSnap.setOnClickListener { startCountdownAndCapture() }
+        btnShare.setOnClickListener { showReadyScreen() }
+        btnShareReady.setOnClickListener { shareSavedPhoto() }
+        btnAgain.setOnClickListener { resetToCapture() }
 
         processExecutor.execute {
             try {
@@ -82,6 +97,39 @@ class MainActivity : AppCompatActivity() {
         mainHandler.postDelayed({ hideSplashOnly() }, 4_000)
     }
 
+    private fun bindViews() {
+        screenCapture = findViewById(R.id.screenCapture)
+        screenResult = findViewById(R.id.screenResult)
+        screenReady = findViewById(R.id.screenReady)
+        preview = findViewById(R.id.preview)
+        shotImg = findViewById(R.id.shotImg)
+        readyThumb = findViewById(R.id.readyThumb)
+        loader = findViewById(R.id.loader)
+        statusText = findViewById(R.id.statusText)
+        countdown = findViewById(R.id.countdown)
+        countdownNum = findViewById(R.id.countdownNum)
+        splash = findViewById(R.id.splash)
+        splashStatus = findViewById(R.id.splashStatus)
+        uvcTexture = findViewById(R.id.uvc)
+        btnSnap = findViewById(R.id.btnSnap)
+        btnShare = findViewById(R.id.btnShare)
+        btnShareReady = findViewById(R.id.btnShareReady)
+        btnAgain = findViewById(R.id.btnAgain)
+    }
+
+    private fun showScreen(capture: Boolean, result: Boolean, ready: Boolean) {
+        screenCapture.visibility = if (capture) View.VISIBLE else View.GONE
+        screenResult.visibility = if (result) View.VISIBLE else View.GONE
+        screenReady.visibility = if (ready) View.VISIBLE else View.GONE
+    }
+
+    private fun resetToCapture() {
+        lastSavedUri = null
+        btnSnap.isEnabled = true
+        btnShare.isEnabled = false
+        showScreen(capture = true, result = false, ready = false)
+    }
+
     private fun hideSplashOnly() {
         splash.visibility = View.GONE
     }
@@ -90,6 +138,12 @@ class MainActivity : AppCompatActivity() {
         statusText.text = msg
         splashStatus.text = msg
         splash.visibility = View.GONE
+    }
+
+    private fun markFeedReady() {
+        if (hasLiveFeed) return
+        hasLiveFeed = true
+        loader.visibility = View.GONE
     }
 
     private fun ensureCameraPermission() {
@@ -132,7 +186,8 @@ class MainActivity : AppCompatActivity() {
                 if (!::segmenter.isInitialized) {
                     mainHandler.post {
                         preview.setImageBitmap(frame)
-                        statusText.text = "Preview cru (IA indisponível) · ${BuildConfig.VERSION_NAME}"
+                        statusText.text = "Preview cru (IA indisponível)"
+                        markFeedReady()
                     }
                     return@execute
                 }
@@ -143,7 +198,7 @@ class MainActivity : AppCompatActivity() {
                     lastPreview?.recycle()
                     lastPreview = composed
                     preview.setImageBitmap(composed)
-                    statusText.text = "Ao vivo · ${BuildConfig.VERSION_NAME}"
+                    markFeedReady()
                 }
             } catch (err: Exception) {
                 Log.e(TAG, "process", err)
@@ -157,41 +212,93 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun startCountdownAndCapture() {
+        if (!btnSnap.isEnabled) return
+        btnSnap.isEnabled = false
+        countdown.visibility = View.VISIBLE
+        runCountdownStep(3) {
+            countdown.visibility = View.GONE
+            capturePhoto()
+        }
+    }
+
+    private fun runCountdownStep(n: Int, onDone: () -> Unit) {
+        if (n < 1) {
+            onDone()
+            return
+        }
+        countdownNum.text = n.toString()
+        mainHandler.postDelayed({ runCountdownStep(n - 1, onDone) }, 900)
+    }
+
     private fun capturePhoto() {
         val inner = lastPreview ?: run {
             Toast.makeText(this, "Aguardando primeiro frame da EMEET…", Toast.LENGTH_SHORT).show()
+            btnSnap.isEnabled = true
             return
         }
         val card = PolaroidExporter.wrapShot(this, inner)
         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val fileName = "fanta_$name.jpg"
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FiltroFanta")
-                }
-                val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                if (uri != null) {
-                    contentResolver.openOutputStream(uri)?.use { out ->
-                        card.compress(Bitmap.CompressFormat.JPEG, 92, out)
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                val folder = java.io.File(dir, "FiltroFanta").apply { mkdirs() }
-                java.io.File(folder, fileName).outputStream().use { out ->
-                    card.compress(Bitmap.CompressFormat.JPEG, 92, out)
-                }
-            }
-            card.recycle()
-            Toast.makeText(this, "Salvo em Fotos/FiltroFanta/$fileName", Toast.LENGTH_LONG).show()
+            val uri = saveToGallery(card, fileName)
+            lastSavedUri = uri
+            shotImg.setImageBitmap(card)
+            readyThumb.setImageBitmap(card)
+            btnShare.isEnabled = false
+            showScreen(capture = false, result = true, ready = false)
+            mainHandler.postDelayed({ btnShare.isEnabled = true }, 400)
         } catch (err: Exception) {
             card.recycle()
             Toast.makeText(this, "Falha ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
+            btnSnap.isEnabled = true
+            showScreen(capture = true, result = false, ready = false)
         }
+    }
+
+    private fun saveToGallery(card: Bitmap, fileName: String): Uri? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/FiltroFanta")
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            if (uri != null) {
+                contentResolver.openOutputStream(uri)?.use { out ->
+                    card.compress(Bitmap.CompressFormat.JPEG, 92, out)
+                }
+            }
+            uri
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            val folder = java.io.File(dir, "FiltroFanta").apply { mkdirs() }
+            val file = java.io.File(folder, fileName)
+            file.outputStream().use { out ->
+                card.compress(Bitmap.CompressFormat.JPEG, 92, out)
+            }
+            Uri.fromFile(file)
+        }
+    }
+
+    private fun showReadyScreen() {
+        if (lastSavedUri == null && lastPreview == null) return
+        showScreen(capture = false, result = false, ready = true)
+    }
+
+    private fun shareSavedPhoto() {
+        val uri = lastSavedUri
+        if (uri == null) {
+            Toast.makeText(this, "Salve uma foto antes de compartilhar.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/jpeg"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, "Compartilhar foto Fanta"))
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:name=".FiltroFantaApp"
-        android:label="Filtro Fanta 5.1"
+        android:label="Filtro Fanta 5.2"
         android:usesCleartextTraffic="false"
         android:hardwareAccelerated="true">
         <activity

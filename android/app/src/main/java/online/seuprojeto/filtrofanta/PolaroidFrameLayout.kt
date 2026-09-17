@@ -15,7 +15,7 @@ class PolaroidFrameLayout @JvmOverloads constructor(
     init {
         orientation = VERTICAL
         background = PolaroidPaperDrawable(context)
-        val pad = (14f * resources.displayMetrics.density).toInt()
+        val pad = (10f * resources.displayMetrics.density).toInt()
         setPadding(pad, pad, pad, 0)
         clipToPadding = false
         clipChildren = false

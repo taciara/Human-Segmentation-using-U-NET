@@ -122,16 +122,17 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             }
 
             // O processo sandboxed do Chromium (renderer do WebView) pode morrer
-            // por OOM ou crash — vimos isso travar a tela em preto permanentemente,
-            // com o ActivityManager recusando relançar o processo ("process is
-            // bad"). Só recreate() (que fica no MESMO processo Android do app)
-            // NÃO resolve: o processo sandboxed contaminado é reaproveitado e
-            // falha de novo, gerando um novo "process is bad" e um loop
-            // infinito de recreate()/falha. É preciso matar o PROCESSO INTEIRO
-            // do app para conseguir um PID novo com processos sandboxed limpos.
+            // por OOM ou crash, deixando a tela preta permanentemente. Tentamos
+            // matar o processo inteiro do app pra forçar um PID novo (na teoria,
+            // com processos sandboxed limpos), mas o Android bloqueou o restart
+            // via AlarmManager+PendingIntent por restrição de "background
+            // activity start" (Android 10+) — o app simplesmente morria e NUNCA
+            // reabria sozinho, o que é bem pior que uma tela preta recuperável.
+            // recreate() não resolve 100% (o processo sandboxed contaminado pode
+            // ser reaproveitado), mas pelo menos mantém o app vivo e tentando.
             override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
-                Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}) — restarting whole process")
-                restartWholeProcess()
+                Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}) — recreating activity")
+                recreate()
                 return true
             }
         }
@@ -166,42 +167,15 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             { v -> Log.i(TAG, "boot $v") }
         )
         mainHandler.postDelayed({ ensureCameraPermission() }, 2_000)
-        mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
     }
-
-    // O processo sandboxed do Chromium pode ser encerrado pelo sistema (pressão
-    // de memória, ou o "process is bad" visto no ActivityManager) enquanto está
-    // OCIOSO — sem carregar nova página nem crashar durante uma operação ativa —
-    // e isso NÃO dispara onRenderProcessGone(). O sintoma observado é a tela
-    // ficar preta permanentemente enquanto o app e a câmera continuam normais.
-    // Esse heartbeat via evaluateJavascript detecta isso: se algumas respostas
-    // seguidas não chegarem, força recreate() da Activity.
-    private var heartbeatMisses = 0
-    private val webviewHeartbeat: Runnable = object : Runnable {
-        override fun run() {
-            var replied = false
-            try {
-                web.evaluateJavascript("1") { replied = true }
-            } catch (err: Exception) {
-                Log.e(TAG, "heartbeat evaluateJavascript threw", err)
-            }
-            mainHandler.postDelayed({
-                if (replied) {
-                    heartbeatMisses = 0
-                    mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
-                } else {
-                    heartbeatMisses++
-                    Log.w(TAG, "WebView heartbeat miss #$heartbeatMisses")
-                    if (heartbeatMisses >= HEARTBEAT_MAX_MISSES) {
-                        Log.e(TAG, "WebView heartbeat dead — restarting whole process")
-                        restartWholeProcess()
-                    } else {
-                        mainHandler.postDelayed(webviewHeartbeat, HEARTBEAT_INTERVAL_MS)
-                    }
-                }
-            }, HEARTBEAT_CHECK_DELAY_MS)
-        }
-    }
+    // Um heartbeat via evaluateJavascript() pra detectar o renderer morto
+    // silenciosamente (sem passar por onRenderProcessGone) foi tentado e
+    // removido: o JS thread fica ocupado com o poll de frames (60-150ms),
+    // gerando falsos positivos, e a ação de recovery (matar processo +
+    // reabrir via AlarmManager) foi bloqueada pelo Android por restrição de
+    // "background activity start", deixando o app morto e sem reabrir sozinho
+    // — pior que a tela preta que tentava resolver. onRenderProcessGone()
+    // (evento real do sistema, sem heurística) + recreate() é o que sobrou.
 
     private val fallbackSiteReady = Runnable {
         if (!pageReady) {
@@ -719,29 +693,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         fun isApk(): Boolean = true
     }
 
-    // Mata o processo inteiro do app e agenda a MainActivity pra reabrir em
-    // ~1s. Diferente de recreate()/Activity.finish(), isso força um PID novo
-    // — necessário porque "process is bad" no ActivityManager é rastreado por
-    // processo, e recreate() reaproveitava o mesmo processo contaminado,
-    // entrando num loop (heartbeat morto -> recreate -> processo sandboxed
-    // falha de novo -> heartbeat morto de novo).
-    private fun restartWholeProcess() {
-        val restartIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
-        val pendingIntent = android.app.PendingIntent.getActivity(
-            this, 0, restartIntent,
-            android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-        val alarmManager = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
-        alarmManager.set(
-            android.app.AlarmManager.ELAPSED_REALTIME,
-            android.os.SystemClock.elapsedRealtime() + 1000,
-            pendingIntent
-        )
-        android.os.Process.killProcess(android.os.Process.myPid())
-    }
-
     override fun onDestroy() {
         mainHandler.removeCallbacks(snapshotLoop)
         mainHandler.removeCallbacksAndMessages(null)
@@ -760,14 +711,5 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         const val OFFSCREEN_TEX_ID = 42
         const val BOOTH_URL = "https://fanta-filtro.seuprojeto.online/"
         const val DEBUG_SAVE_FRAMES = true
-        // O JS thread fica ocupado fazendo poll de frames a cada 60-150ms
-        // (ver startUsbBridge no index.html), então evaluateJavascript pode
-        // demorar mais que alguns segundos pra responder mesmo com o processo
-        // vivo e funcionando — precisamos de folga suficiente pra não confundir
-        // "thread ocupada" com "processo morto" (isso já causou um falso
-        // positivo derrubando a Activity com a câmera funcionando perfeitamente).
-        const val HEARTBEAT_INTERVAL_MS = 10_000L
-        const val HEARTBEAT_CHECK_DELAY_MS = 10_000L
-        const val HEARTBEAT_MAX_MISSES = 4
     }
 }

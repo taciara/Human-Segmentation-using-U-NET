@@ -46,10 +46,9 @@ class BoothCompositor(private val assets: BoothAssets) {
                     continue
                 }
                 val p = pixels[iy * tw + ix]
-                val gray = SegmentationEngine.toGray(Color.blue(p), Color.green(p), Color.red(p))
-                val nr = (Color.red(gray) * a + Color.red(bg) * (1 - a)).toInt()
-                val ng = (Color.green(gray) * a + Color.green(bg) * (1 - a)).toInt()
-                val nb = (Color.blue(gray) * a + Color.blue(bg) * (1 - a)).toInt()
+                val nr = (Color.red(p) * a + Color.red(bg) * (1 - a)).toInt()
+                val ng = (Color.green(p) * a + Color.green(bg) * (1 - a)).toInt()
+                val nb = (Color.blue(p) * a + Color.blue(bg) * (1 - a)).toInt()
                 outPixels[i] = Color.rgb(nr, ng, nb)
             }
         }

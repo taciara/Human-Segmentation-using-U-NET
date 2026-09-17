@@ -2,7 +2,6 @@ package online.seuprojeto.filtrofanta
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Color
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.ByteBufferExtractor
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -132,11 +131,6 @@ class SegmentationEngine(context: Context) {
             val a = v00 + (v10 - v00) * tx
             val b = v01 + (v11 - v01) * tx
             return a + (b - a) * ty
-        }
-
-        fun toGray(b: Int, g: Int, r: Int): Int {
-            val y = (0.114f * b + 0.587f * g + 0.299f * r).toInt().coerceIn(0, 255)
-            return Color.rgb(y, y, y)
         }
     }
 }

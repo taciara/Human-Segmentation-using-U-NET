@@ -15,16 +15,16 @@ class BoothAssets(context: Context) {
     private val cache = LruCache<String, Bitmap>(4)
 
     /**
-     * Igual ao Flask (`app.py`): `bg_foto.png` + Ghostface em `overlays/personagem.png`.
-     * Default da sessão web: `_defaults["background"] = "bg_foto.png"`.
+     * Igual ao Flask (`app.py`): `bg_foto.webp` + Ghostface em `overlays/personagem.webp`.
+     * Default da sessão web: `_defaults["background"] = "bg_foto.webp"`.
      */
     fun loadScene(w: Int, h: Int): Bitmap {
         val key = "scene:$w:$h"
         cache.get(key)?.let { return it }
-        val background = decodeAsset("backgrounds/bg_foto.png", w, h)
+        val background = decodeAsset("backgrounds/bg_foto.webp", w, h)
             ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         var scene = background.copy(Bitmap.Config.ARGB_8888, true)
-        val characterRaw = decodeAsset("overlays/personagem.png", 0, 0, alpha = true)
+        val characterRaw = decodeAsset("overlays/personagem.webp", 0, 0, alpha = true)
         if (characterRaw != null) {
             val placed = placeOverlay(characterRaw, w, h, xShift = 0.06f)
             characterRaw.recycle()

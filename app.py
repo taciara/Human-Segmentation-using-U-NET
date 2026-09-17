@@ -38,7 +38,7 @@ SEO_TWITTER_DESCRIPTION = "A abóbora pediu um gole e o pânico atendeu. Tire su
 _lock = threading.Lock()
 _sessions = {}
 _defaults = {
-    "background": "bg_foto.png",
+    "background": "bg_foto.webp",
     "frame": "",
 }
 
@@ -67,7 +67,8 @@ def inject_seo():
 def list_png(folder: Path):
     if not folder.exists():
         return []
-    return sorted(p.name for p in folder.glob("*.png"))
+    names = list(folder.glob("*.png")) + list(folder.glob("*.jpg")) + list(folder.glob("*.webp"))
+    return sorted(p.name for p in names)
 
 
 def canvas_size(img):
@@ -260,13 +261,7 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None):
         else:
             scene_bg = overlay_rgba(scene_bg, place_overlay(character, background.shape[1], background.shape[0]))
     a = pha[:, :, None]
-    fgr_bgr = np.clip(fgr_rgb[..., ::-1], 0.0, 1.0)
-    gray = (
-        0.114 * fgr_bgr[:, :, 0]
-        + 0.587 * fgr_bgr[:, :, 1]
-        + 0.299 * fgr_bgr[:, :, 2]
-    )
-    fgr_bgr = np.repeat(gray[:, :, None], 3, axis=2) * 255.0
+    fgr_bgr = np.clip(fgr_rgb[..., ::-1], 0.0, 1.0) * 255.0
     scene = fgr_bgr * a + scene_bg.astype(np.float32) * (1.0 - a)
     scene = np.clip(scene, 0, 255).astype(np.uint8)
     return overlay_rgba(scene, frame_rgba)
@@ -279,7 +274,7 @@ class CameraBooth:
         self._busy = False
         self._bg_cache = {}
         self._frame_cache = {}
-        self._character = cv2.imread(str(OVERLAY_DIR / "personagem.png"), cv2.IMREAD_UNCHANGED)
+        self._character = cv2.imread(str(OVERLAY_DIR / "personagem.webp"), cv2.IMREAD_UNCHANGED)
         self._character_placed = None
         self._scene_cache = {}
 

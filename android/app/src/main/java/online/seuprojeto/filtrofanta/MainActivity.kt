@@ -211,6 +211,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         processExecutor.execute {
+            var working: Bitmap? = frame
             try {
                 if (!::segmenter.isInitialized) {
                     mainHandler.post {
@@ -218,11 +219,18 @@ class MainActivity : AppCompatActivity() {
                         statusText.text = "Preview cru (IA indisponível)"
                         markFeedReady()
                     }
+                    working = null
                     return@execute
                 }
-                val mask = segmenter.personMask(frame)
-                val composed = compositor.compose(frame, mask.data, mask.width, mask.height)
-                frame.recycle()
+                val cropped = BoothAssets.coverCrop(frame, BoothAssets.VIEW_W, BoothAssets.VIEW_H)
+                if (cropped !== frame) {
+                    frame.recycle()
+                    working = cropped
+                }
+                val mask = segmenter.personMask(cropped)
+                val composed = compositor.compose(cropped, mask.data, mask.width, mask.height)
+                if (cropped !== composed) cropped.recycle()
+                working = null
                 mainHandler.post {
                     lastPreview?.recycle()
                     lastPreview = composed
@@ -231,7 +239,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (err: Exception) {
                 Log.e(TAG, "process", err)
-                frame.recycle()
+                working?.recycle()
                 mainHandler.post {
                     statusText.text = "Erro no filtro: ${err.message}"
                 }

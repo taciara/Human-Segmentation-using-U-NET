@@ -85,7 +85,7 @@ class BoothAssets(context: Context) {
         fun placeOverlay(overlay: Bitmap, tw: Int, th: Int, xShift: Float): Bitmap {
             val canvas = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
             val c = Canvas(canvas)
-            val scale = th / overlay.height.toFloat()
+            val scale = (th * 0.95f) / overlay.height
             val nw = maxOf(1, (overlay.width * scale).toInt())
             val nh = maxOf(1, (overlay.height * scale).toInt())
             val scaled = Bitmap.createScaledBitmap(overlay, nw, nh, true)

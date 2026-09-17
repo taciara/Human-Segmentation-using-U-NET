@@ -6,35 +6,22 @@ import android.graphics.Color
 class BoothCompositor(private val assets: BoothAssets) {
     private var sceneCache: Bitmap? = null
 
-    fun compose(frame: Bitmap, mask: FloatArray, maskW: Int, maskH: Int): Bitmap {
-        val tw = BoothAssets.VIEW_W
-        val th = BoothAssets.VIEW_H
-        val fw = frame.width
-        val fh = frame.height
-        val zoom = BoothAssets.CAMERA_ZOOM
-        val cropped = BoothAssets.coverCrop(frame, tw, th, zoom)
+    fun compose(cropped: Bitmap, mask: FloatArray, maskW: Int, maskH: Int): Bitmap {
+        val tw = cropped.width
+        val th = cropped.height
         val sceneBg = sceneCache ?: assets.loadScene(tw, th).also { sceneCache = it }
-
         val alpha = SegmentationEngine.refineAlpha(mask, maskW, maskH)
         val out = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
         val pixels = IntArray(tw * th)
         cropped.getPixels(pixels, 0, tw, 0, 0, tw, th)
         val bgPixels = IntArray(tw * th)
         sceneBg.getPixels(bgPixels, 0, tw, 0, 0, tw, th)
-
-        // Mesma transformação de coverCrop(frame, tw, th, zoom), para que a
-        // amostra da máscara caia exatamente sobre o pixel correspondente
-        // do frame original que gerou essa máscara.
-        val scale = maxOf(tw.toFloat() / fw, th.toFloat() / fh) * maxOf(1f, zoom)
-        val cropX = (fw * scale - tw) / 2f
-        val cropY = (fh * scale - th) / 2f
-
+        val xScale = if (tw <= 1) 1f else (maskW - 1f) / (tw - 1f)
+        val yScale = if (th <= 1) 1f else (maskH - 1f) / (th - 1f)
         for (y in 0 until th) {
             for (x in 0 until tw) {
                 val i = y * tw + x
-                val srcXf = (x + cropX) / scale
-                val srcYf = (y + cropY) / scale
-                val a = SegmentationEngine.sampleAlpha(alpha, maskW, maskH, srcXf, srcYf, fw, fh)
+                val a = SegmentationEngine.sampleBilinear(alpha, maskW, maskH, x * xScale, y * yScale)
                 val p = pixels[i]
                 val gray = SegmentationEngine.toGray(Color.blue(p), Color.green(p), Color.red(p))
                 val bg = bgPixels[i]
@@ -45,7 +32,6 @@ class BoothCompositor(private val assets: BoothAssets) {
             }
         }
         out.setPixels(pixels, 0, tw, 0, 0, tw, th)
-        cropped.recycle()
         return out
     }
 

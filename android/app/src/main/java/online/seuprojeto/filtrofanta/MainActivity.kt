@@ -27,6 +27,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,7 +40,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var screenReady: LinearLayout
     private lateinit var preview: ImageView
     private lateinit var shotImg: ImageView
-    private lateinit var readyThumb: ImageView
+    private lateinit var qrImg: ImageView
+    private lateinit var qrWait: View
     private lateinit var loader: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var countdown: FrameLayout
@@ -49,7 +51,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var uvcTexture: TextureView
     private lateinit var btnSnap: Button
     private lateinit var btnShare: Button
-    private lateinit var btnShareReady: Button
     private lateinit var btnAgain: Button
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -63,7 +64,14 @@ class MainActivity : AppCompatActivity() {
 
     private var lastPreview: Bitmap? = null
     private var lastSavedUri: Uri? = null
+    private var lastPolaroid: Bitmap? = null
+    private val shareExecutor = Executors.newSingleThreadExecutor()
+    private var lastQr: Bitmap? = null
+    private var lastShareUrl: String? = null
+    private var shareJob = 0
     private var hasLiveFeed = false
+    private var holdLive = false
+    private var frozenShot: Bitmap? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,7 +88,6 @@ class MainActivity : AppCompatActivity() {
 
         btnSnap.setOnClickListener { startCountdownAndCapture() }
         btnShare.setOnClickListener { showReadyScreen() }
-        btnShareReady.setOnClickListener { shareSavedPhoto() }
         btnAgain.setOnClickListener { resetToCapture() }
 
         processExecutor.execute {
@@ -112,7 +119,8 @@ class MainActivity : AppCompatActivity() {
         screenReady = findViewById(R.id.screenReady)
         preview = findViewById(R.id.preview)
         shotImg = findViewById(R.id.shotImg)
-        readyThumb = findViewById(R.id.readyThumb)
+        qrImg = findViewById(R.id.qrImg)
+        qrWait = findViewById(R.id.qrWait)
         loader = findViewById(R.id.loader)
         statusText = findViewById(R.id.statusText)
         countdown = findViewById(R.id.countdown)
@@ -122,7 +130,6 @@ class MainActivity : AppCompatActivity() {
         uvcTexture = findViewById(R.id.uvc)
         btnSnap = findViewById(R.id.btnSnap)
         btnShare = findViewById(R.id.btnShare)
-        btnShareReady = findViewById(R.id.btnShareReady)
         btnAgain = findViewById(R.id.btnAgain)
     }
 
@@ -130,10 +137,19 @@ class MainActivity : AppCompatActivity() {
         screenCapture.visibility = if (capture) View.VISIBLE else View.GONE
         screenResult.visibility = if (result) View.VISIBLE else View.GONE
         screenReady.visibility = if (ready) View.VISIBLE else View.GONE
+        holdLive = !capture
     }
 
     private fun resetToCapture() {
+        shareJob += 1
         lastSavedUri = null
+        lastShareUrl = null
+        lastPolaroid?.recycle()
+        lastPolaroid = null
+        lastQr?.recycle()
+        lastQr = null
+        qrImg.setImageDrawable(null)
+        qrWait.visibility = View.VISIBLE
         btnSnap.isEnabled = true
         btnShare.isEnabled = false
         showScreen(capture = true, result = false, ready = false)
@@ -186,6 +202,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun enqueueFrame(frame: Bitmap) {
+        if (holdLive) {
+            frame.recycle()
+            return
+        }
         if (processing.getAndSet(true)) {
             frame.recycle()
             return
@@ -247,16 +267,23 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val card = PolaroidExporter.wrapShot(this, inner)
-        val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val fileName = "fanta_$name.jpg"
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val fileName = "foto_${stamp}_${System.currentTimeMillis() % 1000}.jpg"
         try {
-            val uri = saveToGallery(card, fileName)
-            lastSavedUri = uri
-            shotImg.setImageBitmap(card)
-            readyThumb.setImageBitmap(card)
+            lastPolaroid?.recycle()
+            lastPolaroid = card
+            lastShareUrl = "${BuildConfig.SHARE_ORIGIN.trimEnd('/')}/p/$fileName"
+            lastQr?.recycle()
+            lastQr = QrEncoder.encode(lastShareUrl!!, 280)
+            frozenShot?.recycle()
+            frozenShot = inner.copy(Bitmap.Config.ARGB_8888, false)
+            shotImg.setImageBitmap(frozenShot)
+            qrImg.setImageBitmap(lastQr)
+            qrWait.visibility = View.GONE
             btnShare.isEnabled = false
             showScreen(capture = false, result = true, ready = false)
-            mainHandler.postDelayed({ btnShare.isEnabled = true }, 400)
+            startShareUpload(card, fileName)
+            mainHandler.postDelayed({ btnShare.isEnabled = true }, 150)
         } catch (err: Exception) {
             card.recycle()
             Toast.makeText(this, "Falha ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
@@ -291,23 +318,54 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showReadyScreen() {
-        if (lastSavedUri == null && lastPreview == null) return
-        showScreen(capture = false, result = false, ready = true)
+    private fun startShareUpload(card: Bitmap, fileName: String) {
+        val job = ++shareJob
+        shareExecutor.execute {
+            try {
+                val bytes = ByteArrayOutputStream().use { out ->
+                    val scaled = scaleForUpload(card)
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 70, out)
+                    if (scaled !== card) scaled.recycle()
+                    out.toByteArray()
+                }
+                ShareApi.uploadPolaroid(bytes, fileName)
+                val uri = saveToGallery(card, fileName)
+                if (job == shareJob) {
+                    mainHandler.post { lastSavedUri = uri }
+                }
+            } catch (err: Exception) {
+                Log.e(TAG, "upload", err)
+                mainHandler.post {
+                    if (job != shareJob) return@post
+                    if (screenReady.visibility == View.VISIBLE) {
+                        Toast.makeText(this, "Falha ao enviar: ${err.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
     }
 
-    private fun shareSavedPhoto() {
-        val uri = lastSavedUri
-        if (uri == null) {
-            Toast.makeText(this, "Salve uma foto antes de compartilhar.", Toast.LENGTH_SHORT).show()
+    private fun scaleForUpload(src: Bitmap): Bitmap {
+        val maxSide = 720
+        val longest = maxOf(src.width, src.height)
+        if (longest <= maxSide) return src
+        val scale = maxSide / longest.toFloat()
+        return Bitmap.createScaledBitmap(
+            src,
+            maxOf(1, (src.width * scale).toInt()),
+            maxOf(1, (src.height * scale).toInt()),
+            true,
+        )
+    }
+
+    private fun showReadyScreen() {
+        if (lastPolaroid == null) {
+            Toast.makeText(this, "Tire uma foto antes de compartilhar.", Toast.LENGTH_SHORT).show()
             return
         }
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/jpeg"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(intent, "Compartilhar foto Fanta"))
+        qrWait.visibility = if (lastQr == null) View.VISIBLE else View.GONE
+        if (lastQr != null) qrImg.setImageBitmap(lastQr)
+        showScreen(capture = false, result = false, ready = true)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -320,10 +378,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         processExecutor.shutdownNow()
+        shareExecutor.shutdownNow()
         uvc?.release()
         if (::compositor.isInitialized) compositor.release()
         if (::segmenter.isInitialized) segmenter.close()
         lastPreview?.recycle()
+        frozenShot?.recycle()
+        lastPolaroid?.recycle()
+        lastQr?.recycle()
         super.onDestroy()
     }
 

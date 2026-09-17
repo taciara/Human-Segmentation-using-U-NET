@@ -17,8 +17,10 @@ class PolaroidFrameLayout @JvmOverloads constructor(
         background = PolaroidPaperDrawable(context)
         val pad = (14f * resources.displayMetrics.density).toInt()
         setPadding(pad, pad, pad, 0)
-        clipToPadding = true
-        elevation = 22f * resources.displayMetrics.density
+        clipToPadding = false
+        clipChildren = false
+        clipToOutline = false
+        elevation = 12f * resources.displayMetrics.density
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

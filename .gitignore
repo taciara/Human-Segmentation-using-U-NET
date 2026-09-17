@@ -1,4 +1,5 @@
 photos/
+fanta_polaroid/*.jpg
 __pycache__/
 .venv/
 *.pyc

@@ -10,8 +10,9 @@ android {
         applicationId = "online.seuprojeto.filtrofanta"
         minSdk = 24
         targetSdk = 35
-        versionCode = 24
-        versionName = "5.3.5-native"
+        versionCode = 31
+        versionName = "5.3.12-native"
+        buildConfigField("String", "SHARE_ORIGIN", "\"https://fanta-filtro.seuprojeto.online\"")
     }
     androidResources {
         noCompress += listOf("tflite")
@@ -36,4 +37,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
     implementation("com.herohan:UVCAndroid:1.0.13")
+    implementation("com.google.zxing:core:3.5.3")
 }

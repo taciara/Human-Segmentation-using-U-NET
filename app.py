@@ -16,6 +16,7 @@ BG_DIR = ROOT / "assets" / "backgrounds"
 FRAME_DIR = ROOT / "assets" / "frames"
 OVERLAY_DIR = ROOT / "assets" / "overlays"
 PHOTOS_DIR = ROOT / "photos"
+FANTA_POLAROID_DIR = PHOTOS_DIR / "fanta_polaroid"
 LAND_W, LAND_H = 720, 405
 PORT_W, PORT_H = 480, 600
 WIDTH, HEIGHT = LAND_W, LAND_H
@@ -23,7 +24,7 @@ COOKIE_SID = "booth_sid"
 SESSION_TTL = 15 * 60
 ACCESS_KEY = os.environ.get("BOOTH_KEY", "").strip()
 
-PHOTO_NAME = re.compile(r"^foto_\d{8}_\d{6}(_p)?\.jpg$")
+PHOTO_NAME = re.compile(r"^foto_\d{8}_\d{6}(_\d+)?(_p)?\.jpg$")
 LOGO_PATH = ROOT / "static" / "img" / "logo.png"
 
 app = Flask(__name__)
@@ -174,6 +175,14 @@ def make_polaroid(photo_bgr):
 
 def polaroid_name(name: str) -> str:
     return name.replace(".jpg", "_p.jpg")
+
+
+def resolve_photo(name: str):
+    for folder in (FANTA_POLAROID_DIR, PHOTOS_DIR):
+        path = folder / name
+        if path.is_file():
+            return path
+    return None
 
 
 def overlay_rgba(base_bgr, overlay_bgra):
@@ -398,7 +407,7 @@ def _privacy_headers(resp):
 
 @app.before_request
 def _gate():
-    if request.endpoint in ("photo_file", "static", "share_page"):
+    if request.endpoint in ("photo_file", "static", "share_page", "upload_polaroid"):
         return None
     if not _authorized():
         return make_response("Link privado. Peça o endereço completo com chave de acesso.", 401)
@@ -478,6 +487,38 @@ def config():
         return jsonify(background=sess["background"], frame=sess["frame"])
 
 
+@app.post("/upload_polaroid")
+def upload_polaroid():
+    uploaded = request.files.get("photo")
+    if uploaded is None:
+        return jsonify(ok=False, error="Sem arquivo"), 400
+    data = uploaded.read()
+    if not data or len(data) > 12 * 1024 * 1024:
+        return jsonify(ok=False, error="Arquivo inválido"), 400
+    requested = (request.form.get("name") or "").strip()
+    if requested and PHOTO_NAME.match(requested):
+        name = requested
+    else:
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        name = f"foto_{stamp}.jpg"
+        n = 1
+        dest = FANTA_POLAROID_DIR / name
+        while dest.exists():
+            name = f"foto_{stamp}_{n}.jpg"
+            dest = FANTA_POLAROID_DIR / name
+            n += 1
+    FANTA_POLAROID_DIR.mkdir(parents=True, exist_ok=True)
+    dest = FANTA_POLAROID_DIR / name
+    dest.write_bytes(data)
+    page_url = f"{public_origin()}/p/{name}"
+    return jsonify(
+        ok=True,
+        file=name,
+        url=url_for("photo_file", name=name),
+        share_url=page_url,
+    )
+
+
 @app.post("/capture")
 def capture():
     with _lock:
@@ -506,18 +547,28 @@ def capture():
 
 @app.get("/p/<name>")
 def share_page(name):
-    if not PHOTO_NAME.match(name) or not (PHOTOS_DIR / name).exists():
+    if not PHOTO_NAME.match(name):
         return make_response("Foto não encontrada.", 404)
-    card = polaroid_name(name)
-    if not (PHOTOS_DIR / card).exists():
-        src = cv2.imread(str(PHOTOS_DIR / name))
-        if src is None:
-            return make_response("Foto não encontrada.", 404)
-        cv2.imwrite(str(PHOTOS_DIR / card), make_polaroid(src))
+    src_path = resolve_photo(name)
+    if src_path is None:
+        return make_response("Foto não encontrada.", 404)
+    if src_path.parent.resolve() == FANTA_POLAROID_DIR.resolve():
+        card_name = name
+    else:
+        card = polaroid_name(name)
+        card_path = resolve_photo(card)
+        if card_path is None:
+            src = cv2.imread(str(src_path))
+            if src is None:
+                return make_response("Foto não encontrada.", 404)
+            cv2.imwrite(str(PHOTOS_DIR / card), make_polaroid(src))
+            card_name = card
+        else:
+            card_name = card_path.name
     return render_template(
         "share.html",
         photo_url=url_for("photo_file", name=name),
-        card_url=url_for("photo_file", name=card),
+        card_url=url_for("photo_file", name=card_name),
     )
 
 
@@ -525,7 +576,10 @@ def share_page(name):
 def photo_file(name):
     if not PHOTO_NAME.match(name):
         return make_response("Arquivo inválido.", 404)
-    return send_from_directory(PHOTOS_DIR, name)
+    path = resolve_photo(name)
+    if path is None:
+        return make_response("Arquivo inválido.", 404)
+    return send_from_directory(path.parent, path.name)
 
 
 if __name__ == "__main__":

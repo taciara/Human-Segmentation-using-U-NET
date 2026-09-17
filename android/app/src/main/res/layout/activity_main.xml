@@ -130,23 +130,34 @@
     <LinearLayout
         android:id="@+id/screenResult"
         style="@style/BoothScreen"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:paddingTop="6dp"
         android:visibility="gone">
 
         <ImageView style="@style/BoothTopLogo" />
 
-        <FrameLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginStart="@dimen/screen_gutter"
             android:layout_marginTop="6dp"
             android:layout_marginEnd="@dimen/screen_gutter"
-            android:layout_weight="1">
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
 
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Polaroid só com a foto; logo vem depois, por cima e para fora. -->
             <online.seuprojeto.filtrofanta.PolaroidFrameLayout
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center">
+                android:layout_height="wrap_content">
 
                 <online.seuprojeto.filtrofanta.AspectRatioFrameLayout
                     android:layout_width="match_parent"
@@ -161,24 +172,34 @@
                         android:scaleType="centerCrop" />
                 </online.seuprojeto.filtrofanta.AspectRatioFrameLayout>
 
-                <ImageView
+                <View
                     android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="-32dp"
-                    android:layout_marginBottom="-48dp"
-                    android:contentDescription="@null"
-                    android:paddingTop="8dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/logo_fanta" />
+                    android:layout_height="36dp" />
             </online.seuprojeto.filtrofanta.PolaroidFrameLayout>
-        </FrameLayout>
+
+            <ImageView
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-72dp"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:elevation="32dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo_fanta"
+                android:translationZ="32dp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btnShare"
             style="@style/BoothButtonFanta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/share_margin_top"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="24dp"
             android:enabled="false"
             android:minWidth="280dp"
@@ -191,57 +212,62 @@
         style="@style/BoothScreen"
         android:paddingStart="19dp"
         android:paddingEnd="19dp"
-        android:paddingBottom="32dp"
+        android:paddingBottom="24dp"
         android:visibility="gone">
 
         <ImageView style="@style/BoothTopLogo" />
 
-        <TextView
-            style="@style/BoothReadyHeadline"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="SUA FOTO ESTÁ PRONTA!" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
 
-        <TextView
-            style="@style/BoothReadyLead"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:maxWidth="320dp"
-            android:text="TOQUE EM COMPARTILHAR PARA ENVIAR PELA GALERIA OU REDES." />
+            <TextView
+                style="@style/BoothReadyHeadline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SUA FOTO ESTÁ PRONTA!" />
 
-        <FrameLayout
-            android:layout_width="@dimen/qr_box_max"
-            android:layout_height="@dimen/qr_box_max"
-            android:layout_marginTop="16dp"
-            android:background="#FFFFFF"
-            android:padding="10dp">
+            <TextView
+                style="@style/BoothReadyLead"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:maxWidth="320dp"
+                android:text="ESCANEIE O QR CODE PARA ACESSAR E COMPARTILHAR SUA FOTO." />
 
-            <ImageView
-                android:id="@+id/readyThumb"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:contentDescription="Miniatura da foto"
-                android:scaleType="centerCrop" />
-        </FrameLayout>
+            <FrameLayout
+                android:layout_width="@dimen/qr_box_max"
+                android:layout_height="@dimen/qr_box_max"
+                android:layout_marginTop="18dp"
+                android:background="#FFFFFF"
+                android:padding="10dp">
 
-        <Button
-            android:id="@+id/btnShareReady"
-            style="@style/BoothButtonFanta"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:minWidth="280dp"
-            android:text="COMPARTILHAR" />
+                <ProgressBar
+                    android:id="@+id/qrWait"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="@color/fanta_orange" />
 
-        <Button
-            android:id="@+id/btnAgain"
-            style="@style/BoothButtonAgain"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="RECOMEÇAR" />
+                <ImageView
+                    android:id="@+id/qrImg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="QR Code da foto"
+                    android:scaleType="fitCenter" />
+            </FrameLayout>
+
+            <Button
+                android:id="@+id/btnAgain"
+                style="@style/BoothButtonAgain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="RECOMEÇAR" />
+        </LinearLayout>
     </LinearLayout>
 
     <FrameLayout

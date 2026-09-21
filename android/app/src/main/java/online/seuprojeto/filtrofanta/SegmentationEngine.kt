@@ -51,20 +51,45 @@ class SegmentationEngine(context: Context) {
             val a = FloatArray(flat.size)
             for (i in flat.indices) {
                 var v = flat[i].coerceIn(0f, 1f)
-                if (v < 0.05f) v = 0f
+                if (v < 0.04f) v = 0f
                 a[i] = v
             }
             val dil = FloatArray(a.size)
             max3(a, dil, w, h)
             val clo = FloatArray(a.size)
             min3(dil, clo, w, h)
-            val blur = FloatArray(clo.size)
-            box3(clo, blur, w, h)
-            box3(blur, clo, w, h)
+            val ero = FloatArray(clo.size)
+            min3(clo, ero, w, h)
+            val b1 = FloatArray(ero.size)
+            box3(ero, b1, w, h)
+            box3(b1, clo, w, h)
+            box3(clo, b1, w, h)
+            box5(b1, clo, w, h)
             for (i in clo.indices) {
-                clo[i] = ((clo[i] - 0.08f) / 0.84f).coerceIn(0f, 1f)
+                clo[i] = smoothstep(0.16f, 0.78f, clo[i])
             }
             return clo
+        }
+
+        private fun smoothstep(e0: Float, e1: Float, x: Float): Float {
+            val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
+            return t * t * (3f - 2f * t)
+        }
+
+        private fun box5(src: FloatArray, dst: FloatArray, w: Int, h: Int) {
+            for (y in 0 until h) {
+                for (x in 0 until w) {
+                    var sum = 0f
+                    for (dy in -2..2) {
+                        val yy = (y + dy).coerceIn(0, h - 1)
+                        for (dx in -2..2) {
+                            val xx = (x + dx).coerceIn(0, w - 1)
+                            sum += src[yy * w + xx]
+                        }
+                    }
+                    dst[y * w + x] = sum / 25f
+                }
+            }
         }
 
         private fun max3(src: FloatArray, dst: FloatArray, w: Int, h: Int) {

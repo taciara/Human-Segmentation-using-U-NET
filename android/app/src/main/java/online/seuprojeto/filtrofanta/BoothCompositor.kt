@@ -27,7 +27,7 @@ class BoothCompositor(private val assets: BoothAssets) {
         val cx = tw / 2f
         val cy = th.toFloat()
         val outPixels = IntArray(tw * th)
-        val needLerp = highQuality && zoom != 1f
+        val needLerp = highQuality
         for (y in 0 until th) {
             for (x in 0 until tw) {
                 val i = y * tw + x
@@ -59,7 +59,7 @@ class BoothCompositor(private val assets: BoothAssets) {
                 } else {
                     pixels[iy * tw + ix]
                 }
-                if (a >= 0.97f) {
+                if (a >= 0.995f) {
                     outPixels[i] = p
                     continue
                 }
@@ -90,11 +90,15 @@ class BoothCompositor(private val assets: BoothAssets) {
 
     private fun sharpenPerson(px: IntArray, bg: IntArray, w: Int, h: Int) {
         val src = px.copyOf()
-        val amount = 0.28f
+        val amount = 0.16f
         for (y in 1 until h - 1) {
             for (x in 1 until w - 1) {
                 val i = y * w + x
                 if (px[i] == bg[i]) continue
+                if (src[(y - 1) * w + x] == bg[(y - 1) * w + x]) continue
+                if (src[(y + 1) * w + x] == bg[(y + 1) * w + x]) continue
+                if (src[y * w + x - 1] == bg[y * w + x - 1]) continue
+                if (src[y * w + x + 1] == bg[y * w + x + 1]) continue
                 val c = src[i]
                 val up = src[(y - 1) * w + x]
                 val dn = src[(y + 1) * w + x]

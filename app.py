@@ -248,7 +248,7 @@ def refine_alpha(pha):
     return pha
 
 
-def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None):
+def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None, person_bw=True):
     """Usa o primeiro plano já limpo do RVM (sem halo da parede)."""
     pha = refine_alpha(pha)
     if pha.shape[:2] != background.shape[:2]:
@@ -262,6 +262,10 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None):
             scene_bg = overlay_rgba(scene_bg, place_overlay(character, background.shape[1], background.shape[0]))
     a = pha[:, :, None]
     fgr_bgr = np.clip(fgr_rgb[..., ::-1], 0.0, 1.0) * 255.0
+    if person_bw:
+        b, g, r = fgr_bgr[..., 0], fgr_bgr[..., 1], fgr_bgr[..., 2]
+        y = 0.114 * b + 0.587 * g + 0.299 * r
+        fgr_bgr = np.stack([y, y, y], axis=-1)
     scene = fgr_bgr * a + scene_bg.astype(np.float32) * (1.0 - a)
     scene = np.clip(scene, 0, 255).astype(np.uint8)
     return overlay_rgba(scene, frame_rgba)
@@ -287,7 +291,7 @@ class CameraBooth:
             self._frame_cache[fr_key] = load_frame(frame_name, tw, th) if frame_name else None
         return self._bg_cache[bg_key], self._frame_cache[fr_key]
 
-    def process(self, frame, rec, bg_name, frame_name):
+    def process(self, frame, rec, bg_name, frame_name, person_bw=True):
         tw, th = canvas_size(frame)
         inset = max(2, frame.shape[0] // 40)
         frame = frame[: frame.shape[0] - inset]
@@ -311,7 +315,7 @@ class CameraBooth:
         scene_bg = self._scene_cache[key]
         if moldura is not None and (moldura.shape[1] != w or moldura.shape[0] != h):
             moldura = cv2.resize(moldura, (w, h), interpolation=cv2.INTER_AREA)
-        composed = compose_rvm(fgr, pha, scene_bg, moldura, None)
+        composed = compose_rvm(fgr, pha, scene_bg, moldura, None, person_bw=person_bw)
         ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
         jpeg = buf.tobytes() if ok_jpg else None
         return composed, jpeg, rec
@@ -323,9 +327,15 @@ class CameraBooth:
 booth = None
 
 
+def ensure_photo_dirs():
+    PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    FANTA_POLAROID_DIR.mkdir(parents=True, exist_ok=True)
+
+
 def get_booth():
     global booth
     if booth is None:
+        ensure_photo_dirs()
         booth = CameraBooth()
     return booth
 
@@ -363,6 +373,7 @@ def _new_session():
         "frame": _defaults["frame"],
         "last_jpeg": None,
         "last_bgr": None,
+        "person_bw": True,
         "seen": time.time(),
     }
 
@@ -467,6 +478,7 @@ def upload_frame():
         rec = sess["rec"]
         bg_name = sess["background"]
         frame_name = sess["frame"]
+        person_bw = sess.get("person_bw", True)
         cached = sess.get("last_jpeg")
     if not booth.infer_lock.acquire(blocking=False):
         if cached:
@@ -474,12 +486,12 @@ def upload_frame():
         return jsonify(ok=False), 503
     booth._busy = True
     try:
-        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name)
+        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw)
     except Exception:
         with _lock:
             rec = [None, None, None, None]
             _sessions[g.sid]["rec"] = rec
-        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name)
+        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw)
     finally:
         booth._busy = False
         booth.infer_lock.release()
@@ -503,7 +515,13 @@ def config():
             sess["background"] = data["background"]
         if data.get("frame") in list_png(FRAME_DIR):
             sess["frame"] = data["frame"]
-        return jsonify(background=sess["background"], frame=sess["frame"])
+        if "person_bw" in data:
+            sess["person_bw"] = bool(data["person_bw"])
+        return jsonify(
+            background=sess["background"],
+            frame=sess["frame"],
+            person_bw=sess.get("person_bw", True),
+        )
 
 
 @app.post("/upload_polaroid")
@@ -547,19 +565,26 @@ def capture():
             image = image.copy()
     if image is None:
         return jsonify(ok=False, error="Sem imagem da webcam"), 503
+    ensure_photo_dirs()
     h, w = image.shape[:2]
     if max(h, w) > 900:
         scale = 900 / float(max(h, w))
         image = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
     name = time.strftime("foto_%Y%m%d_%H%M%S.jpg")
-    cv2.imwrite(str(PHOTOS_DIR / name), image)
+    raw_path = PHOTOS_DIR / name
+    if not cv2.imwrite(str(raw_path), image):
+        return jsonify(ok=False, error="Falha ao salvar a foto"), 500
     card = make_polaroid(image)
-    cv2.imwrite(str(PHOTOS_DIR / polaroid_name(name)), card)
+    card_name = polaroid_name(name)
+    card_path = PHOTOS_DIR / card_name
+    if not cv2.imwrite(str(card_path), card):
+        return jsonify(ok=False, error="Falha ao montar a polaroid"), 500
     page_url = f"{public_origin()}/p/{name}"
     return jsonify(
         ok=True,
         file=name,
         url=url_for("photo_file", name=name),
+        card_url=url_for("photo_file", name=card_name),
         share_url=page_url,
     )
 

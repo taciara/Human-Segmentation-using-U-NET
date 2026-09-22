@@ -405,23 +405,52 @@
             object-position: center;
             display: block;
         }
-        .cam-switch {
+        .look-toggle {
             position: fixed;
-            top: 12px;
-            left: 12px;
+            top: max(10px, env(safe-area-inset-top, 0px));
+            left: max(10px, env(safe-area-inset-left, 0px));
             z-index: 50;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            width: min(calc(100vw - 20px), 300px);
+            padding: 5px;
+            border-radius: 999px;
+            background: rgba(230, 223, 210, 0.94);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(6px);
+        }
+        .look-toggle button {
             border: 0;
-            background: #ff6a00;
-            color: #111;
+            margin: 0;
+            background: rgba(0, 0, 0, 0.06);
+            color: rgba(17, 17, 17, 0.55);
             font-family: "FantaPop", "FantaSans", sans-serif;
-            font-size: .85rem;
-            padding: .55rem .9rem;
+            font-size: clamp(0.62rem, 2.6vw, 0.76rem);
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            line-height: 1.2;
+            padding: 0.58rem 0.45rem;
             border-radius: 999px;
             cursor: pointer;
-            opacity: 1;
-            box-shadow: 0 4px 0 #c43e00;
+            white-space: nowrap;
+            transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
         }
-        #result .cam-switch, #ready .cam-switch { display: none; }
+        .look-toggle button:not(.is-on):active {
+            transform: scale(0.98);
+        }
+        .look-toggle button.is-on {
+            background: linear-gradient(180deg, #ff8a14 0%, #ff5a00 100%);
+            color: #111;
+            box-shadow: 0 4px 0 #c43e00, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+        .look-toggle button:not(.is-on):hover {
+            color: rgba(17, 17, 17, 0.82);
+            background: rgba(0, 0, 0, 0.1);
+        }
+        #result .look-toggle, #ready .look-toggle { display: none; }
         .usb-note {
             position: fixed;
             left: 12px;
@@ -444,7 +473,10 @@
         <div class="drip-wrap">
             <div class="drip-bottom"></div>
         </div>
-        <button class="cam-switch" id="camSwitch" type="button">Trocar câmera</button>
+        <div class="look-toggle" id="lookToggle" role="group" aria-label="Aparência da pessoa">
+            <button type="button" id="lookColor" data-bw="0">Colorido</button>
+            <button type="button" id="lookBw" data-bw="1" class="is-on">Preto e Branco</button>
+        </div>
         <div class="usb-note" id="usbNote">No Chrome a tablet usa a câmera dela. A webcam USB (EMEET) só funciona no app Filtro Fanta.</div>
         <div class="top-logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta"></div>
         <div class="polaroid-stage">
@@ -599,8 +631,9 @@
                     return;
                 }
                 const shot = document.getElementById("shotImg");
-                shot.src = data.url;
-                frozenShotUrl = data.url;
+                const showUrl = data.card_url || data.url;
+                shot.src = showUrl;
+                frozenShotUrl = showUrl;
                 pendingShareUrl = data.share_url || (location.origin + data.url);
                 startQr(pendingShareUrl);
                 showScreen(resultScreen);
@@ -689,6 +722,68 @@
             return new Promise((r) => setTimeout(r, ms));
         }
 
+        let clientCamStarted = false;
+        let clientCamPromise = null;
+        let camBootHandled = false;
+        let personBw = localStorage.getItem("booth_look") !== "color";
+
+        function syncLookButtons() {
+            const colorBtn = document.getElementById("lookColor");
+            const bwBtn = document.getElementById("lookBw");
+            if (!colorBtn || !bwBtn) return;
+            colorBtn.classList.toggle("is-on", !personBw);
+            bwBtn.classList.toggle("is-on", personBw);
+            colorBtn.setAttribute("aria-pressed", String(!personBw));
+            bwBtn.setAttribute("aria-pressed", String(personBw));
+        }
+
+        async function applyLookMode(bw) {
+            personBw = !!bw;
+            localStorage.setItem("booth_look", personBw ? "bw" : "color");
+            syncLookButtons();
+            try {
+                await fetch("/config", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ person_bw: personBw }),
+                });
+            } catch (err) {
+                console.warn("applyLookMode", err);
+            }
+        }
+
+        let lookToggleBound = false;
+        function bindLookToggle() {
+            const colorBtn = document.getElementById("lookColor");
+            const bwBtn = document.getElementById("lookBw");
+            if (!colorBtn || !bwBtn) return;
+            if (!lookToggleBound) {
+                lookToggleBound = true;
+                colorBtn.addEventListener("click", () => applyLookMode(false));
+                bwBtn.addEventListener("click", () => applyLookMode(true));
+            }
+            syncLookButtons();
+            applyLookMode(personBw);
+        }
+
+        function isBenignPlayError(err) {
+            if (!err) return false;
+            const name = err.name || "";
+            const msg = String(err.message || err).toLowerCase();
+            return name === "AbortError" || msg.includes("interrupted") || msg.includes("aborted");
+        }
+
+        async function safePlay(video) {
+            if (!video || !video.srcObject) return;
+            try {
+                await video.play();
+            } catch (err) {
+                if (isBenignPlayError(err)) return;
+                throw err;
+            }
+        }
+
         function stopStream(stream) {
             if (!stream) return;
             stream.getTracks().forEach((t) => t.stop());
@@ -741,18 +836,19 @@
             await wait(400);
             const stream = await openCam(deviceId);
             cam.srcObject = stream;
-            await cam.play();
+            await safePlay(cam);
             const id = stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId;
             if (id) localStorage.setItem("booth_cam", id);
             return stream;
         }
 
         async function startClientCamera() {
+            if (clientCamPromise) return clientCamPromise;
+            clientCamPromise = (async () => {
             let stream = await openCam();
             cam.srcObject = stream;
-            await cam.play();
+            await safePlay(cam);
             const cams = await listCams();
-            const camSwitch = document.getElementById("camSwitch");
             const preferred = await pickDeviceId(cams);
             const currentId = stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId;
             if (preferred && preferred !== currentId) {
@@ -763,25 +859,12 @@
                     if (!cam.srcObject) {
                         stream = await openCam();
                         cam.srcObject = stream;
-                        await cam.play();
+                        await safePlay(cam);
                     }
                 }
             }
-            camSwitch.addEventListener("click", async () => {
-                const list = await listCams();
-                if (list.length < 2) return;
-                const current = cam.srcObject && cam.srcObject.getVideoTracks()[0] && cam.srcObject.getVideoTracks()[0].getSettings().deviceId;
-                const start = Math.max(0, list.findIndex((c) => c.deviceId === current));
-                for (let i = 1; i <= list.length; i++) {
-                    const next = list[(start + i) % list.length];
-                    try {
-                        await switchTo(next.deviceId);
-                        return;
-                    } catch (err) {
-                        localStorage.removeItem("booth_cam");
-                    }
-                }
-            });
+            clientCamStarted = true;
+            bindLookToggle();
             navigator.mediaDevices.addEventListener("devicechange", async () => {
                 await listCams();
             });
@@ -818,6 +901,8 @@
                 }
             }
             pushFrame();
+            })();
+            return clientCamPromise;
         }
 
         let usbBridgeOn = false;
@@ -835,8 +920,7 @@
                     cam.srcObject = null;
                 }
             }
-            const camSwitch = document.getElementById("camSwitch");
-            if (camSwitch) camSwitch.style.display = "none";
+            bindLookToggle();
             const usbWait = document.getElementById("usbWait");
             let inFlight = false;
             let emptyFrames = 0;
@@ -916,16 +1000,32 @@
 
         window.startUsbBridge = startUsbBridge;
         function bootCam() {
+            if (camBootHandled) return;
             if (window.AndroidBooth) {
+                camBootHandled = true;
                 startUsbBridge();
                 return;
             }
+            if (clientCamStarted || clientCamPromise) return;
+            camBootHandled = true;
             if (/Android/i.test(navigator.userAgent)) {
                 const note = document.getElementById("usbNote");
                 if (note) note.style.display = "block";
             }
             startClientCamera().catch((err) => {
-                alert("Permita a câmera neste aparelho: " + (err.message || err));
+                clientCamPromise = null;
+                camBootHandled = false;
+                if (isBenignPlayError(err)) return;
+                const name = err && err.name;
+                if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+                    alert("Permita a câmera neste aparelho.");
+                    return;
+                }
+                if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+                    alert("Nenhuma câmera encontrada neste aparelho.");
+                    return;
+                }
+                console.warn("bootCam", err);
             });
         }
         // Iniciar boot assim que DOM estiver pronto

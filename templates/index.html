@@ -121,7 +121,7 @@
             background: #111;
             overflow: hidden;
             isolation: isolate;
-            z-index: 1;
+            z-index: 5;
         }
         .viewfinder > img {
             position: absolute;
@@ -631,7 +631,7 @@
                     return;
                 }
                 const shot = document.getElementById("shotImg");
-                const showUrl = data.card_url || data.url;
+                const showUrl = data.url;
                 shot.src = showUrl;
                 frozenShotUrl = showUrl;
                 pendingShareUrl = data.share_url || (location.origin + data.url);

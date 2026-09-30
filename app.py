@@ -37,10 +37,18 @@ SEO_TWITTER_DESCRIPTION = "A abóbora pediu um gole e o pânico atendeu. Tire su
 
 _lock = threading.Lock()
 _sessions = {}
+BG_LOCKER_COLOR = "fundo_lockeroom_color.webp"
+BG_LOCKER_BW = "fundo_lockeroom_pb.webp"
+CHARACTER_X_SHIFT = 0.16
+
 _defaults = {
-    "background": "bg_foto.webp",
+    "background": BG_LOCKER_BW,
     "frame": "",
 }
+
+
+def locker_background(person_bw: bool) -> str:
+    return BG_LOCKER_BW if person_bw else BG_LOCKER_COLOR
 
 
 def public_origin():
@@ -310,7 +318,9 @@ class CameraBooth:
         key = (bg_name, w, h)
         if key not in self._scene_cache:
             if self._character_placed is None or self._character_placed.shape[1] != w or self._character_placed.shape[0] != h:
-                self._character_placed = place_overlay(self._character, w, h)
+                self._character_placed = place_overlay(
+                    self._character, w, h, x_shift=CHARACTER_X_SHIFT
+                )
             self._scene_cache[key] = overlay_rgba(background, self._character_placed)
         scene_bg = self._scene_cache[key]
         if moldura is not None and (moldura.shape[1] != w or moldura.shape[0] != h):
@@ -369,7 +379,7 @@ def _purge_sessions():
 def _new_session():
     return {
         "rec": [None, None, None, None],
-        "background": _defaults["background"],
+        "background": locker_background(True),
         "frame": _defaults["frame"],
         "last_jpeg": None,
         "last_bgr": None,
@@ -464,6 +474,14 @@ def video():
     return make_response("Stream compartilhado desativado por privacidade.", 404)
 
 
+@app.route("/app.apk")
+def download_apk():
+    apk_path = ROOT / "static" / "app.apk"
+    if not apk_path.exists():
+        return make_response("APK not found", 404)
+    return send_from_directory(ROOT / "static", "app.apk", as_attachment=True)
+
+
 @app.post("/frame")
 def upload_frame():
     data = request.get_data()
@@ -517,6 +535,8 @@ def config():
             sess["frame"] = data["frame"]
         if "person_bw" in data:
             sess["person_bw"] = bool(data["person_bw"])
+            sess["background"] = locker_background(sess["person_bw"])
+            sess["last_jpeg"] = None
         return jsonify(
             background=sess["background"],
             frame=sess["frame"],
@@ -641,7 +661,7 @@ if __name__ == "__main__":
     try:
         print("Photobooth: http://127.0.0.1:5000")
         print("Túnel: https://fanta-filtro.seuprojeto.online")
-        app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
+        app.run(host=os.environ.get("HOST", "127.0.0.1"), port=5000, debug=False, threaded=True)
     finally:
         if booth is not None:
             booth.stop()

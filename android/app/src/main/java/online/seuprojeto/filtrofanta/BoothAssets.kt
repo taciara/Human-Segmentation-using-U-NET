@@ -10,18 +10,29 @@ import android.graphics.Paint
 import android.graphics.Shader
 import android.util.LruCache
 
-class BoothAssets(context: Context) {
+class BoothAssets(context: Context, private val imageConfig: BoothImageConfig) {
     private val app = context.applicationContext
     private val cache = LruCache<String, Bitmap>(4)
 
+    fun clearSceneCache() {
+        val snapshot = cache.snapshot()
+        for (bmp in snapshot.values) {
+            if (!bmp.isRecycled) bmp.recycle()
+        }
+        cache.evictAll()
+    }
+
     fun loadScene(w: Int, h: Int, personBw: Boolean): Bitmap {
-        val key = "scene:$w:$h:$personBw"
+        val rev = imageConfig.revisionToken()
+        val key = "scene:$w:$h:$personBw:$rev"
         cache.get(key)?.let { return it }
         val bgPath = if (personBw) BG_LOCKER_BW else BG_LOCKER_COLOR
-        val background = decodeAsset("backgrounds/$bgPath", w, h)
+        val background = imageConfig.decodeBackground(personBw, w, h)
+            ?: decodeAsset("backgrounds/$bgPath", w, h)
             ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         var scene = background.copy(Bitmap.Config.ARGB_8888, true)
-        val characterRaw = decodeAsset("overlays/personagem.webp", 0, 0, alpha = true)
+        val characterRaw = imageConfig.decodeCharacter()
+            ?: decodeAsset("overlays/personagem.webp", 0, 0, alpha = true)
         if (characterRaw != null) {
             val placed = placeOverlay(characterRaw, w, h, xShift = CHARACTER_X_SHIFT)
             characterRaw.recycle()

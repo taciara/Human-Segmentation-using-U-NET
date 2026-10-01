@@ -52,7 +52,7 @@ class UvcCameraController(
         helper.setStateCallback(object : ICameraHelper.StateCallback {
             override fun onAttach(device: UsbDevice) {
                 Log.i(TAG, "USB attach ${device.deviceName}")
-                onStatus("Permita USB: OK → Filtro Fanta → Sempre")
+                onStatus("Permita USB: OK → Cabine Fanta → Sempre")
                 helper.selectDevice(device)
             }
 
@@ -92,7 +92,7 @@ class UvcCameraController(
                 Log.w(TAG, "USB cancel ${device.deviceName}")
                 usbStarted = false
                 previewReady = false
-                onStatus("Toque OK e escolha Sempre no Filtro Fanta")
+                onStatus("Toque OK e escolha Sempre no Cabine Fanta")
                 mainHandler.postDelayed({ helper.selectDevice(device) }, 1200)
             }
         })

@@ -18,10 +18,15 @@ import android.view.TextureView
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.text.InputType
+import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -53,11 +58,27 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSnap: Button
     private lateinit var btnShare: Button
     private lateinit var btnAgain: Button
+    private lateinit var btnRetake: ImageButton
     private lateinit var lookColor: TextView
     private lateinit var lookBw: TextView
+    private lateinit var topLogoCapture: ImageView
 
     @Volatile
     private var personBw = true
+
+    private var adminTapCount = 0
+    private var adminTapResetAt = 0L
+
+    private val imageConfigLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != RESULT_OK) return@registerForActivityResult
+        processExecutor.execute {
+            if (::assets.isInitialized) assets.clearSceneCache()
+            if (::compositor.isInitialized) compositor.invalidateScenes()
+        }
+        Toast.makeText(this, "Imagens atualizadas", Toast.LENGTH_SHORT).show()
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val processExecutor = Executors.newSingleThreadExecutor()
@@ -88,6 +109,7 @@ class MainActivity : AppCompatActivity() {
         personBw = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_PERSON_BW, true)
         setupLookToggle()
         applyLookUi()
+        setupAdminEntry()
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             screenCapture.setPadding(0, bars.top / 3, 0, bars.bottom + dp(16))
@@ -95,15 +117,17 @@ class MainActivity : AppCompatActivity() {
             screenReady.setPadding(screenReady.paddingLeft, bars.top / 3, screenReady.paddingRight, bars.bottom + dp(16))
             insets
         }
-        title = "Filtro Fanta ${BuildConfig.VERSION_NAME}"
+        title = "Cabine Fanta ${BuildConfig.VERSION_NAME}"
 
         btnSnap.setOnClickListener { startCountdownAndCapture() }
         btnShare.setOnClickListener { showReadyScreen() }
         btnAgain.setOnClickListener { resetToCapture() }
+        btnRetake.setOnClickListener { resetToCapture() }
 
         processExecutor.execute {
             try {
-                assets = BoothAssets(this)
+                val imageConfig = BoothImageConfig(this)
+                assets = BoothAssets(this, imageConfig)
                 segmenter = SegmentationEngine(this)
                 compositor = BoothCompositor(assets)
                 mainHandler.post {
@@ -143,8 +167,45 @@ class MainActivity : AppCompatActivity() {
         btnSnap = findViewById(R.id.btnSnap)
         btnShare = findViewById(R.id.btnShare)
         btnAgain = findViewById(R.id.btnAgain)
+        btnRetake = findViewById(R.id.btnRetake)
         lookColor = findViewById(R.id.lookColor)
         lookBw = findViewById(R.id.lookBw)
+        topLogoCapture = findViewById(R.id.topLogoCapture)
+    }
+
+    private fun setupAdminEntry() {
+        topLogoCapture.setOnClickListener {
+            if (screenCapture.visibility != View.VISIBLE) return@setOnClickListener
+            val now = System.currentTimeMillis()
+            if (now - adminTapResetAt > 2500L) adminTapCount = 0
+            adminTapResetAt = now
+            adminTapCount += 1
+            if (adminTapCount >= 3) {
+                adminTapCount = 0
+                promptAdminPin()
+            }
+        }
+    }
+
+    private fun promptAdminPin() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "Senha"
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Configuração")
+            .setMessage("Digite a senha para alterar fundos e personagem.")
+            .setView(input)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Entrar") { _, _ ->
+                if (input.text.toString() == BoothImageConfig.ADMIN_PIN) {
+                    imageConfigLauncher.launch(Intent(this, ImageConfigActivity::class.java))
+                } else {
+                    Toast.makeText(this, "Senha incorreta", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .show()
     }
 
     private fun setupLookToggle() {
@@ -157,7 +218,8 @@ class MainActivity : AppCompatActivity() {
         personBw = bw
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_PERSON_BW, bw).apply()
         applyLookUi()
-        if (::compositor.isInitialized) compositor.invalidateScenes()
+        if (!::compositor.isInitialized) return
+        processExecutor.execute { compositor.invalidateScenes() }
     }
 
     private fun applyLookUi() {
@@ -299,9 +361,9 @@ class MainActivity : AppCompatActivity() {
                 if (cropped !== composed) cropped.recycle()
                 working = null
                 mainHandler.post {
+                    preview.setImageBitmap(composed)
                     lastPreview?.recycle()
                     lastPreview = composed
-                    preview.setImageBitmap(composed)
                     markFeedReady()
                 }
             } catch (err: Exception) {

@@ -10,8 +10,9 @@ android {
         applicationId = "online.seuprojeto.filtrofanta"
         minSdk = 24
         targetSdk = 35
-        versionCode = 80
-        versionName = "5.5.2-native"
+        versionCode = 91
+        versionName = "5.7.7-native"
+        manifestPlaceholders["appLabel"] = "Cabine Fanta"
         buildConfigField("String", "SHARE_ORIGIN", "\"https://fanta-filtro.seuprojeto.online\"")
     }
     androidResources {

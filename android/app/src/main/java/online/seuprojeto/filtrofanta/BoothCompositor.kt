@@ -2,11 +2,29 @@ package online.seuprojeto.filtrofanta
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import java.util.concurrent.locks.ReentrantLock
 
 class BoothCompositor(private val assets: BoothAssets) {
     private val sceneCache = HashMap<String, Bitmap>()
+    private val sceneLock = ReentrantLock()
 
     fun compose(
+        cropped: Bitmap,
+        mask: FloatArray,
+        maskW: Int,
+        maskH: Int,
+        highQuality: Boolean,
+        personBw: Boolean,
+    ): Bitmap {
+        sceneLock.lock()
+        try {
+            return composeLocked(cropped, mask, maskW, maskH, highQuality, personBw)
+        } finally {
+            sceneLock.unlock()
+        }
+    }
+
+    private fun composeLocked(
         cropped: Bitmap,
         mask: FloatArray,
         maskW: Int,
@@ -81,17 +99,28 @@ class BoothCompositor(private val assets: BoothAssets) {
 
     fun release() {
         invalidateScenes()
+        assets.clearSceneCache()
     }
 
     fun invalidateScenes() {
-        sceneCache.values.forEach { it.recycle() }
-        sceneCache.clear()
+        sceneLock.lock()
+        try {
+            sceneCache.values.forEach { bmp ->
+                if (!bmp.isRecycled) bmp.recycle()
+            }
+            sceneCache.clear()
+        } finally {
+            sceneLock.unlock()
+        }
     }
 
     private fun sceneFor(w: Int, h: Int, personBw: Boolean): Bitmap {
         val key = "$w:$h:$personBw"
         sceneCache[key]?.let { return it }
-        return assets.loadScene(w, h, personBw).also { sceneCache[key] = it }
+        val master = assets.loadScene(w, h, personBw)
+        val copy = master.copy(master.config ?: Bitmap.Config.ARGB_8888, true)
+        sceneCache[key] = copy
+        return copy
     }
 
     private fun toGray(rgb: Int): Int {

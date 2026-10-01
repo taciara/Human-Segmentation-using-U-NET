@@ -23,11 +23,65 @@
 
         <ImageView style="@style/BoothTopLogo" />
 
+        <LinearLayout
+            android:id="@+id/lookToggle"
+            android:layout_width="@dimen/look_toggle_width"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/look_toggle_panel"
+            android:baselineAligned="false"
+            android:orientation="horizontal"
+            android:padding="5dp">
+
+            <TextView
+                android:id="@+id/lookColor"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/look_toggle_chip_off"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/fanta_pop_condensed"
+                android:gravity="center"
+                android:paddingStart="6dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="10dp"
+                android:text="Colorido"
+                android:textAllCaps="true"
+                android:textColor="@color/look_toggle_off"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lookBw"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:background="@drawable/look_toggle_chip_on"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/fanta_pop_condensed"
+                android:gravity="center"
+                android:paddingStart="6dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="10dp"
+                android:text="Preto e Branco"
+                android:textAllCaps="true"
+                android:textColor="@color/ink"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginStart="@dimen/screen_gutter"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="0dp"
             android:layout_marginEnd="@dimen/screen_gutter"
             android:layout_weight="1">
 

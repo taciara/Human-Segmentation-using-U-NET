@@ -6,6 +6,7 @@
     <dimen name="polaroid_stage_max_width">252dp</dimen>
     <dimen name="polaroid_stage_max_width_result">240dp</dimen>
     <dimen name="screen_gutter">16dp</dimen>
+    <dimen name="look_toggle_width">240dp</dimen>
 
     <dimen name="how_max_width">520dp</dimen>
     <dimen name="how_margin_bottom">20dp</dimen>

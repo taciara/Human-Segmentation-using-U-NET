@@ -12,10 +12,11 @@ class BoothCompositor(private val assets: BoothAssets) {
         maskW: Int,
         maskH: Int,
         highQuality: Boolean,
+        personBw: Boolean,
     ): Bitmap {
         val tw = cropped.width
         val th = cropped.height
-        val sceneBg = sceneFor(tw, th)
+        val sceneBg = sceneFor(tw, th, personBw)
         val alpha = SegmentationEngine.refineAlpha(mask, maskW, maskH)
         val pixels = IntArray(tw * th)
         cropped.getPixels(pixels, 0, tw, 0, 0, tw, th)
@@ -59,15 +60,16 @@ class BoothCompositor(private val assets: BoothAssets) {
                 } else {
                     pixels[iy * tw + ix]
                 }
+                val fg = if (personBw) toGray(p) else p
                 if (a >= 0.995f) {
-                    outPixels[i] = p
+                    outPixels[i] = fg
                     continue
                 }
                 val ia = 1f - a
                 outPixels[i] = Color.rgb(
-                    (Color.red(p) * a + Color.red(bg) * ia).toInt(),
-                    (Color.green(p) * a + Color.green(bg) * ia).toInt(),
-                    (Color.blue(p) * a + Color.blue(bg) * ia).toInt(),
+                    (Color.red(fg) * a + Color.red(bg) * ia).toInt(),
+                    (Color.green(fg) * a + Color.green(bg) * ia).toInt(),
+                    (Color.blue(fg) * a + Color.blue(bg) * ia).toInt(),
                 )
             }
         }
@@ -78,14 +80,27 @@ class BoothCompositor(private val assets: BoothAssets) {
     }
 
     fun release() {
+        invalidateScenes()
+    }
+
+    fun invalidateScenes() {
         sceneCache.values.forEach { it.recycle() }
         sceneCache.clear()
     }
 
-    private fun sceneFor(w: Int, h: Int): Bitmap {
-        val key = "$w:$h"
+    private fun sceneFor(w: Int, h: Int, personBw: Boolean): Bitmap {
+        val key = "$w:$h:$personBw"
         sceneCache[key]?.let { return it }
-        return assets.loadScene(w, h).also { sceneCache[key] = it }
+        return assets.loadScene(w, h, personBw).also { sceneCache[key] = it }
+    }
+
+    private fun toGray(rgb: Int): Int {
+        val y = (
+            0.299f * Color.red(rgb) +
+                0.587f * Color.green(rgb) +
+                0.114f * Color.blue(rgb)
+            ).toInt().coerceIn(0, 255)
+        return Color.rgb(y, y, y)
     }
 
     private fun sharpenPerson(px: IntArray, bg: IntArray, w: Int, h: Int) {

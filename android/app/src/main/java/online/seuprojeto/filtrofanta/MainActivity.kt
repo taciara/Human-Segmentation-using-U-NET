@@ -53,6 +53,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSnap: Button
     private lateinit var btnShare: Button
     private lateinit var btnAgain: Button
+    private lateinit var lookColor: TextView
+    private lateinit var lookBw: TextView
+
+    @Volatile
+    private var personBw = true
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val processExecutor = Executors.newSingleThreadExecutor()
@@ -80,6 +85,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         bindViews()
+        personBw = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_PERSON_BW, true)
+        setupLookToggle()
+        applyLookUi()
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             screenCapture.setPadding(0, bars.top / 3, 0, bars.bottom + dp(16))
@@ -135,6 +143,34 @@ class MainActivity : AppCompatActivity() {
         btnSnap = findViewById(R.id.btnSnap)
         btnShare = findViewById(R.id.btnShare)
         btnAgain = findViewById(R.id.btnAgain)
+        lookColor = findViewById(R.id.lookColor)
+        lookBw = findViewById(R.id.lookBw)
+    }
+
+    private fun setupLookToggle() {
+        lookColor.setOnClickListener { setPersonBw(false) }
+        lookBw.setOnClickListener { setPersonBw(true) }
+    }
+
+    private fun setPersonBw(bw: Boolean) {
+        if (personBw == bw) return
+        personBw = bw
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_PERSON_BW, bw).apply()
+        applyLookUi()
+        if (::compositor.isInitialized) compositor.invalidateScenes()
+    }
+
+    private fun applyLookUi() {
+        val on = R.drawable.look_toggle_chip_on
+        val off = R.drawable.look_toggle_chip_off
+        lookColor.setBackgroundResource(if (personBw) off else on)
+        lookBw.setBackgroundResource(if (personBw) on else off)
+        lookColor.setTextColor(
+            ContextCompat.getColor(this, if (personBw) R.color.look_toggle_off else R.color.ink),
+        )
+        lookBw.setTextColor(
+            ContextCompat.getColor(this, if (personBw) R.color.ink else R.color.look_toggle_off),
+        )
     }
 
     private fun showScreen(capture: Boolean, result: Boolean, ready: Boolean) {
@@ -252,7 +288,14 @@ class MainActivity : AppCompatActivity() {
                 val segInput = Bitmap.createScaledBitmap(cropped, segW, segH, true)
                 val mask = segmenter.personMask(segInput)
                 segInput.recycle()
-                val composed = compositor.compose(cropped, mask.data, mask.width, mask.height, highQuality = false)
+                val composed = compositor.compose(
+                    cropped,
+                    mask.data,
+                    mask.width,
+                    mask.height,
+                    highQuality = false,
+                    personBw = personBw,
+                )
                 if (cropped !== composed) cropped.recycle()
                 working = null
                 mainHandler.post {
@@ -369,7 +412,14 @@ class MainActivity : AppCompatActivity() {
         val segInput = Bitmap.createScaledBitmap(cropped, segW, segH, true)
         val mask = segmenter.personMask(segInput)
         segInput.recycle()
-        val composed = compositor.compose(cropped, mask.data, mask.width, mask.height, highQuality = true)
+        val composed = compositor.compose(
+            cropped,
+            mask.data,
+            mask.width,
+            mask.height,
+            highQuality = true,
+            personBw = personBw,
+        )
         if (cropped !== composed && cropped !== frame) cropped.recycle()
         return composed
     }
@@ -493,6 +543,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "FiltroFanta"
+        private const val PREFS = "booth_prefs"
+        private const val KEY_PERSON_BW = "person_bw"
         private const val REQ_CAMERA = 32
     }
 

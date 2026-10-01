@@ -14,19 +14,16 @@ class BoothAssets(context: Context) {
     private val app = context.applicationContext
     private val cache = LruCache<String, Bitmap>(4)
 
-    /**
-     * Igual ao Flask (`app.py`): `bg_foto.webp` + Ghostface em `overlays/personagem.webp`.
-     * Default da sessão web: `_defaults["background"] = "bg_foto.webp"`.
-     */
-    fun loadScene(w: Int, h: Int): Bitmap {
-        val key = "scene:$w:$h"
+    fun loadScene(w: Int, h: Int, personBw: Boolean): Bitmap {
+        val key = "scene:$w:$h:$personBw"
         cache.get(key)?.let { return it }
-        val background = decodeAsset("backgrounds/bg_foto.webp", w, h)
+        val bgPath = if (personBw) BG_LOCKER_BW else BG_LOCKER_COLOR
+        val background = decodeAsset("backgrounds/$bgPath", w, h)
             ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         var scene = background.copy(Bitmap.Config.ARGB_8888, true)
         val characterRaw = decodeAsset("overlays/personagem.webp", 0, 0, alpha = true)
         if (characterRaw != null) {
-            val placed = placeOverlay(characterRaw, w, h, xShift = 0.06f)
+            val placed = placeOverlay(characterRaw, w, h, xShift = CHARACTER_X_SHIFT)
             characterRaw.recycle()
             scene = overlayRgba(scene, placed)
             placed.recycle()
@@ -54,6 +51,10 @@ class BoothAssets(context: Context) {
     }
 
     companion object {
+        private const val BG_LOCKER_COLOR = "fundo_lockeroom_color.webp"
+        private const val BG_LOCKER_BW = "fundo_lockeroom_pb.webp"
+        const val CHARACTER_X_SHIFT = 0.16f
+
         /** Preview ao vivo (leve). A foto final usa VIEW_W/H. */
         const val PREVIEW_W = 480
         const val PREVIEW_H = 600

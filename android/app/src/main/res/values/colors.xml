@@ -5,4 +5,5 @@
     <color name="fanta_blue">#1C4CFF</color>
     <color name="polaroid_paper">#E6DFD2</color>
     <color name="ink">#111111</color>
+    <color name="look_toggle_off">#8C111111</color>
 </resources>

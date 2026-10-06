@@ -332,9 +332,9 @@ class BoothMediaPipe:
         try:
             from mediapipe.solutions import selfie_segmentation
 
-            # API simples com auto-download automático
-            self.segmenter = selfie_segmentation.SelfieSegmentation(model_selection=0)
-            print("✅ MediaPipe Selfie Segmentation carregado!")
+            # model_selection=1: landscape (mais rápido, usado pelo Google Meet)
+            self.segmenter = selfie_segmentation.SelfieSegmentation(model_selection=1)
+            print("✅ MediaPipe Selfie Segmentation (landscape) carregado!")
         except Exception as e:
             print(f"⚠️ MediaPipe init failed: {e}")
 
@@ -370,13 +370,14 @@ class BoothMediaPipe:
         if self.segmenter is not None:
             try:
                 with self.infer_lock:
-                    # API simples do MediaPipe
+                    # Processar com MediaPipe (retorna máscara float 0-1)
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     results = self.segmenter.process(rgb_frame)
                     if results.segmentation_mask is not None:
+                        # Converter máscara float (0-1) para uint8 (0-255)
                         mask = (results.segmentation_mask * 255).astype(np.uint8)
             except Exception as e:
-                print(f"MediaPipe segment error: {e}")
+                print(f"MediaPipe error: {e}")
                 mask = None
 
         background, moldura = self._assets(bg_name, frame_name, tw, th)

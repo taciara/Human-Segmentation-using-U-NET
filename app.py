@@ -286,7 +286,13 @@ class CameraBooth:
         self._busy = False
         self._bg_cache = {}
         self._frame_cache = {}
-        self._character = cv2.imread(str(OVERLAY_DIR / "personagem.webp"), cv2.IMREAD_UNCHANGED)
+        # Tentar PNG primeiro (mais compatível), depois webp
+        char_png = OVERLAY_DIR / "personagem.png"
+        char_webp = OVERLAY_DIR / "personagem.webp"
+        if char_png.exists():
+            self._character = cv2.imread(str(char_png), cv2.IMREAD_UNCHANGED)
+        else:
+            self._character = cv2.imread(str(char_webp), cv2.IMREAD_UNCHANGED)
         self._character_placed = None
         self._scene_cache = {}
 

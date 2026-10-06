@@ -212,11 +212,12 @@ class UvcCameraController(
         if (sizes.isNullOrEmpty()) return null
         val mjpeg = sizes.filter { it.type == UVCCamera.FRAME_FORMAT_MJPEG }
         val pool = if (mjpeg.isNotEmpty()) mjpeg else sizes
-        val prefer = listOf(1920 to 1080, 1280 to 720, 960 to 720, 800 to 600, 640 to 480, 320 to 240)
+        // Preferir resoluções menores para reduzir delay (prioridade: velocidade > qualidade)
+        val prefer = listOf(640 to 480, 800 to 600, 960 to 720, 1280 to 720, 1920 to 1080)
         for ((w, h) in prefer) {
             pool.firstOrNull { it.width == w && it.height == h }?.let { return it }
         }
-        return pool.filter { it.width <= 1920 && it.height <= 1080 }
+        return pool.filter { it.width <= 1280 && it.height <= 960 }
             .maxByOrNull { it.width * it.height }
             ?: pool.minByOrNull { it.width * it.height }
     }

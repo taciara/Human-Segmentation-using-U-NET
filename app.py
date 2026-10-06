@@ -499,6 +499,12 @@ def upload_frame():
     img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         return jsonify(ok=False), 400
+
+    # Guardar frame RAW para uso em /capture
+    with _lock:
+        if g.sid in _sessions:
+            _sessions[g.sid]["last_frame_raw"] = img.copy()
+
     booth = get_booth()
     if booth is None:
         return Response(data, mimetype="image/jpeg")
@@ -592,8 +598,25 @@ def capture():
     with _lock:
         sess = _sessions.get(g.sid)
         image = None if sess is None else sess.get("last_bgr")
+        frame_raw = None if sess is None else sess.get("last_frame_raw")
         if image is not None:
             image = image.copy()
+
+    # Se não tem imagem processada, processar agora com a IA
+    if image is None and frame_raw is not None:
+        booth = get_booth()
+        if booth is not None:
+            with _lock:
+                sess = _sessions[g.sid]
+                rec = sess.get("rec")
+                bg_name = sess["background"]
+                frame_name = sess["frame"]
+                person_bw = sess.get("person_bw", True)
+            try:
+                image, _, _ = booth.process(frame_raw, rec, bg_name, frame_name, person_bw=person_bw)
+            except Exception:
+                pass
+
     if image is None:
         return jsonify(ok=False, error="Sem imagem da webcam"), 503
     ensure_photo_dirs()

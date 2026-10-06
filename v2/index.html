@@ -304,14 +304,19 @@
         }
 
         async function loadBackgroundImage() {
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 const img = new Image();
                 img.src = 'assets/backgrounds/fundo.jpg';
                 img.onload = () => {
                     state.backgroundImage = img;
+                    updateStatus('Fundo carregado!');
                     resolve();
                 };
-                img.onerror = () => reject(new Error('Erro ao carregar fundo'));
+                img.onerror = () => {
+                    console.warn('Fundo não encontrado, usando cor sólida');
+                    state.backgroundImage = null; // Usar cor como fallback
+                    resolve();
+                };
             });
         }
 
@@ -367,7 +372,11 @@
             if (state.backgroundImage) {
                 ctx.drawImage(state.backgroundImage, 0, 0, canvas.width, canvas.height);
             } else {
-                ctx.fillStyle = '#000';
+                // Fallback: gradiente laranja (Fanta)
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, '#ff6a00');
+                gradient.addColorStop(1, '#ff5a00');
+                ctx.fillStyle = gradient;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
@@ -377,12 +386,23 @@
                 const imageData = ctx.createImageData(canvas.width, canvas.height);
                 const data = imageData.data;
 
+                // Copiar pixels da câmera
+                const videoImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const videoData = videoImageData.data;
+
                 for (let i = 0; i < mask.length; i++) {
                     const isForeground = mask[i] > 0.5;
                     const pixelIndex = i * 4;
 
-                    if (!isForeground) {
-                        data[pixelIndex + 3] = 0; // Transparência
+                    if (isForeground) {
+                        // Copiar pixel da câmera
+                        data[pixelIndex] = videoData[pixelIndex];         // R
+                        data[pixelIndex + 1] = videoData[pixelIndex + 1]; // G
+                        data[pixelIndex + 2] = videoData[pixelIndex + 2]; // B
+                        data[pixelIndex + 3] = 255;                       // A
+                    } else {
+                        // Manter fundo
+                        data[pixelIndex + 3] = 0;
                     }
                 }
 

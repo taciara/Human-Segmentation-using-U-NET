@@ -522,12 +522,12 @@ def upload_frame():
         return jsonify(ok=False), 503
     booth._busy = True
     try:
-        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw)
+        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw, downsample=0.95)
     except Exception:
         with _lock:
             rec = [None, None, None, None]
             _sessions[g.sid]["rec"] = rec
-        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw)
+        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw, downsample=0.95)
     finally:
         booth._busy = False
         booth.infer_lock.release()

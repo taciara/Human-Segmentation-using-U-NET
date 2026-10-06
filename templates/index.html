@@ -663,8 +663,8 @@
         const preview = document.getElementById("preview");
         const previewBox = document.getElementById("previewBox");
         const sendCanvas = document.createElement("canvas");
-        let sendW = 360; // Reduzido de 720 (50% menor = 4x menos pixels)
-        let sendH = 202; // Reduzido de 405
+        let sendW = 480; // Melhor qualidade que 360 (com downsampling 0.95 compensa)
+        let sendH = 270; // Escalado proporcionalmente
         const sendCtx = sendCanvas.getContext("2d", { alpha: false });
         sendCanvas.width = sendW;
         sendCanvas.height = sendH;
@@ -680,11 +680,11 @@
 
         function syncCanvas() {
             if (isPortraitFeed()) {
-                sendW = 240; // Reduzido de 480
-                sendH = 300; // Reduzido de 600
+                sendW = 320; // Melhor que 240 (proporcional ao landscape)
+                sendH = 400; // Escalado proporcionalmente
             } else {
-                sendW = 360; // Reduzido de 720
-                sendH = 202; // Reduzido de 405
+                sendW = 480; // Melhor qualidade
+                sendH = 270; // Escalado proporcionalmente
             }
             if (sendCanvas.width !== sendW || sendCanvas.height !== sendH) {
                 sendCanvas.width = sendW;

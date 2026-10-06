@@ -1,0 +1,23 @@
+# V2 - Pasta de testes
+# Remova este arquivo quando a v2 for validada e mergeada
+
+# Imagens de fundo (grandes)
+assets/backgrounds/*.jpg
+assets/backgrounds/*.png
+assets/backgrounds/*.webp
+
+# Modelos baixados
+assets/models/*.tflite
+assets/models/*.task
+
+# Cache
+.DS_Store
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

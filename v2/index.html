@@ -193,8 +193,17 @@
 </head>
 <body>
     <div class="container">
+        <!-- TELA DE CARREGAMENTO -->
+        <div id="loadingScreen" class="screen active" style="background: linear-gradient(135deg, #ff6a00 0%, #ff5a00 100%); gap: 2rem;">
+            <div class="spinner" style="width: 60px; height: 60px; border: 6px solid rgba(255,255,255,0.3); border-top-color: #fff;"></div>
+            <div style="font-size: 1.2rem; text-align: center;">
+                <div>Carregando MediaPipe...</div>
+                <div style="font-size: 0.9rem; margin-top: 1rem; opacity: 0.9;" id="loadStatus">Aguarde...</div>
+            </div>
+        </div>
+
         <!-- TELA INICIAL -->
-        <div id="startScreen" class="screen active">
+        <div id="startScreen" class="screen">
             <div class="logo">🎃 FANTA</div>
             <div class="title">Photobooth Halloween</div>
             <button onclick="startCamera()">COMEÇAR</button>
@@ -246,13 +255,51 @@
             segmenter: null,
             backgroundImage: null,
             capturedPhoto: null,
-            isProcessing: false
+            isProcessing: false,
+            mediapifeReady: false
         };
 
-        // Aguardar MediaPipe carregar
-        let MediaPipeVision = null;
-        let FilesetResolver = null;
-        let ImageSegmenter = null;
+        // Aguardar MediaPipe ficar disponível
+        async function waitForMediaPipe(maxWait = 30000) {
+            const startTime = Date.now();
+            const loadStatus = document.getElementById('loadStatus');
+
+            while (Date.now() - startTime < maxWait) {
+                if (window.FilesetResolver && window.ImageSegmenter) {
+                    state.mediapifeReady = true;
+                    loadStatus.textContent = '✅ Pronto! Inicializando...';
+                    return true;
+                }
+                loadStatus.textContent = `Carregando... ${Math.floor((Date.now() - startTime) / 1000)}s`;
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            throw new Error('MediaPipe não carregou após 30 segundos');
+        }
+
+        // Inicializar tudo
+        async function initApp() {
+            try {
+                await waitForMediaPipe();
+                showScreen('startScreen');
+            } catch (err) {
+                showError('Erro: ' + err.message);
+                document.getElementById('loadingScreen').innerHTML = `
+                    <div style="color: #fff; text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                        <div>${err.message}</div>
+                        <button onclick="location.reload()" style="margin-top: 2rem;">Tentar Novamente</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Iniciar quando página carregar
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
 
         function showError(message) {
             const errorEl = document.getElementById('error');
@@ -329,21 +376,13 @@
 
         async function initMediaPipe() {
             try {
-                updateStatus('Carregando MediaPipe...');
+                updateStatus('Inicializando segmentação...');
 
-                // Aguardar MediaPipe do CDN ficar disponível
-                let attempts = 0;
-                while ((!window.FilesetResolver || !window.ImageSegmenter) && attempts < 10) {
-                    await new Promise(r => setTimeout(r, 500));
-                    attempts++;
+                if (!state.mediapifeReady) {
+                    throw new Error('MediaPipe não está pronto');
                 }
 
-                const FilesetResolver = window.FilesetResolver;
-                const ImageSegmenter = window.ImageSegmenter;
-
-                if (!FilesetResolver || !ImageSegmenter) {
-                    throw new Error('MediaPipe não carregou. Verifique sua conexão.');
-                }
+                const { FilesetResolver, ImageSegmenter } = window;
 
                 const vision = await FilesetResolver.forVisionTasks(
                     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
@@ -358,7 +397,7 @@
                     outputConfidenceMasks: false
                 });
 
-                updateStatus('MediaPipe OK! ✅');
+                updateStatus('✅ Pronto!');
             } catch (err) {
                 showError('Erro ao carregar MediaPipe: ' + err.message);
                 throw err;

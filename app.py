@@ -280,9 +280,18 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None, person_bw=
 
 def compose_mediapipe(bgr, mask, background, frame_rgba, character=None, person_bw=True):
     """Compõe usando máscara do MediaPipe (mais rápido, qualidade aceitável)."""
-    if mask is None:
-        return background
     h, w = bgr.shape[:2]
+    if mask is None or mask.size == 0:
+        # Se não tem máscara, retorna apenas background + character
+        scene_bg = background
+        if background.shape[:2] != (h, w):
+            scene_bg = cv2.resize(background, (w, h), interpolation=cv2.INTER_AREA)
+        if character is not None:
+            if character.shape[0] == h and character.shape[1] == w:
+                return overlay_rgba(scene_bg, character)
+            else:
+                return overlay_rgba(scene_bg, place_overlay(character, w, h, x_shift=CHARACTER_X_SHIFT))
+        return scene_bg
     if mask.shape[:2] != (h, w):
         mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_LINEAR)
     if background.shape[:2] != (h, w):
@@ -656,8 +665,25 @@ def upload_frame():
             return Response(cached, mimetype="image/jpeg")
         return jsonify(ok=False), 503
     try:
-        composed, jpeg = booth_mp.process(img, bg_name, frame_name, person_bw=person_bw)
-    except Exception:
+        if booth_mp.segmenter is None:
+            # MediaPipe falhou na inicialização, usar RVM como fallback
+            booth_rvm = get_booth()
+            if booth_rvm is not None:
+                with _lock:
+                    sess = _sessions[g.sid]
+                    rec = sess.get("rec", [None, None, None, None])
+                try:
+                    composed, jpeg, rec = booth_rvm.process(img, rec, bg_name, frame_name, person_bw=person_bw, downsample=0.95)
+                    with _lock:
+                        _sessions[g.sid]["rec"] = rec
+                except Exception:
+                    composed, jpeg = None, None
+            else:
+                composed, jpeg = None, None
+        else:
+            composed, jpeg = booth_mp.process(img, bg_name, frame_name, person_bw=person_bw)
+    except Exception as e:
+        print(f"Frame processing error: {e}")
         composed, jpeg = None, None
     finally:
         booth_mp.infer_lock.release()

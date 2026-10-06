@@ -309,15 +309,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun startUvc() {
         if (uvc != null) return
-        val prefs = getSharedPreferences("BoothPrefs", MODE_PRIVATE)
-        val cameraType = prefs.getString("cameraType", "emeet") ?: "emeet"
-
-        if (cameraType != "emeet") {
-            statusText.text = "Câmera do dispositivo não disponível nesta versão\nUsando EMEET..."
-            mainHandler.postDelayed({ startUvc() }, 2000L)
-            return
-        }
-
+        // TODO: Implementar DeviceCameraController corretamente quando houver mais tempo para debug
+        // Por enquanto, só usa EMEET (padrão e funciona bem nas tablets)
         uvc = UvcCameraController(
             this,
             uvcTexture,
@@ -611,6 +604,7 @@ class MainActivity : AppCompatActivity() {
         processExecutor.shutdownNow()
         shareExecutor.shutdownNow()
         uvc?.release()
+        deviceCamera?.stop()
         if (::compositor.isInitialized) compositor.release()
         if (::segmenter.isInitialized) segmenter.close()
         lastPreview?.recycle()

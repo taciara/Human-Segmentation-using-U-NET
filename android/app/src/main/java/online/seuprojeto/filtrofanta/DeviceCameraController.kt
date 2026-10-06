@@ -32,15 +32,29 @@ class DeviceCameraController(
     private var captureSession: CameraCaptureSession? = null
     private var imageReader: ImageReader? = null
     private var started = false
-    private val previewW = 480
-    private val previewH = 360
+    private val previewW = 640
+    private val previewH = 480
+    private var frameCount = 0
 
     fun start() {
         if (started) return
         started = true
         onStatus("Abrindo câmera do dispositivo…")
         Log.i(TAG, "DeviceCameraController.start()")
-        cameraThread.execute { openCamera() }
+
+        // Configurar TextureView listener
+        if (!textureView.isAvailable) {
+            textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                    cameraThread.execute { openCamera() }
+                }
+                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+            }
+        } else {
+            cameraThread.execute { openCamera() }
+        }
     }
 
     fun stop() {
@@ -103,6 +117,10 @@ class DeviceCameraController(
             imageReader!!.setOnImageAvailableListener({ reader ->
                 val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
+                    frameCount++
+                    if (frameCount % 30 == 0) {
+                        Log.i(TAG, "Frames recebidos: $frameCount (${image.width}x${image.height})")
+                    }
                     val bitmap = yuvToRgb(image)
                     onFrameBitmap(bitmap)
                 } finally {
@@ -110,7 +128,10 @@ class DeviceCameraController(
                 }
             }, mainHandler)
 
-            val surfaces = listOf(imageReader!!.surface)
+            val surfaces = listOf(
+                imageReader!!.surface,
+                Surface(textureView.surfaceTexture)
+            )
 
             camera.createCaptureSession(surfaces, object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {

@@ -305,19 +305,19 @@ class CameraBooth:
             self._frame_cache[fr_key] = load_frame(frame_name, tw, th) if frame_name else None
         return self._bg_cache[bg_key], self._frame_cache[fr_key]
 
-    def process(self, frame, rec, bg_name, frame_name, person_bw=True):
+    def process(self, frame, rec, bg_name, frame_name, person_bw=True, downsample=0.6):
         tw, th = canvas_size(frame)
         inset = max(2, frame.shape[0] // 40)
         frame = frame[: frame.shape[0] - inset]
         frame = cover_crop(frame, tw, th, zoom_out=1.0)
         try:
             with self.infer_lock:
-                # Qualidade alta para foto final (não precisa ser rápido)
-                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
+                # Usar downsampling parametrizado (padrão 0.6 para preview, 0.28 para foto)
+                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=downsample)
         except RuntimeError:
             rec = [None, None, None, None]
             with self.infer_lock:
-                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
+                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=downsample)
         background, moldura = self._assets(bg_name, frame_name, tw, th)
         h, w = frame.shape[:2]
         if background.shape[1] != w or background.shape[0] != h:
@@ -603,7 +603,7 @@ def capture():
         if image is not None:
             image = image.copy()
 
-    # Se não tem imagem processada, processar agora com a IA
+    # Se não tem imagem processada, processar agora com a IA em QUALIDADE ALTA
     if image is None and frame_raw is not None:
         booth = get_booth()
         if booth is not None:
@@ -614,7 +614,8 @@ def capture():
                 frame_name = sess["frame"]
                 person_bw = sess.get("person_bw", True)
             try:
-                image, _, _ = booth.process(frame_raw, rec, bg_name, frame_name, person_bw=person_bw)
+                # Usar downsampling 0.28 para qualidade alta na foto final
+                image, _, _ = booth.process(frame_raw, rec, bg_name, frame_name, person_bw=person_bw, downsample=0.28)
             except Exception:
                 pass
 

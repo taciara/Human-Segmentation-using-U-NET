@@ -872,9 +872,10 @@
                 await listCams();
             });
             let inFlight = false;
+            const FRAME_INTERVAL = 130; // 7-8 FPS: mais rápido que processamento, menos delay
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
-                    setTimeout(pushFrame, 70);
+                    setTimeout(pushFrame, FRAME_INTERVAL);
                     return;
                 }
                 inFlight = true;
@@ -900,7 +901,7 @@
                     }
                 } finally {
                     inFlight = false;
-                    setTimeout(pushFrame, 50);
+                    setTimeout(pushFrame, FRAME_INTERVAL);
                 }
             }
             pushFrame();

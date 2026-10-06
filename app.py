@@ -8,6 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from flask import Flask, Response, g, jsonify, make_response, render_template, request, send_from_directory, url_for
+import mediapipe as mp
 
 ROOT = Path(__file__).resolve().parent
 BG_DIR = ROOT / "assets" / "backgrounds"
@@ -277,6 +278,128 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None, person_bw=
     return overlay_rgba(scene, frame_rgba)
 
 
+def compose_mediapipe(bgr, mask, background, frame_rgba, character=None, person_bw=True):
+    """Compõe usando máscara do MediaPipe (mais rápido, qualidade aceitável)."""
+    if mask is None:
+        return background
+    h, w = bgr.shape[:2]
+    if mask.shape[:2] != (h, w):
+        mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_LINEAR)
+    if background.shape[:2] != (h, w):
+        background = cv2.resize(background, (w, h), interpolation=cv2.INTER_AREA)
+
+    mask_f = mask.astype(np.float32) / 255.0
+    mask_f = np.clip(mask_f, 0.0, 1.0)
+
+    # Suavizar bordas da máscara (MediaPipe é mais harsh)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    mask_u8 = (mask_f * 255).astype(np.uint8)
+    mask_u8 = cv2.GaussianBlur(mask_u8, (5, 5), 0)
+    mask_f = mask_u8.astype(np.float32) / 255.0
+
+    scene_bg = background
+    if character is not None:
+        if character.shape[0] == h and character.shape[1] == w:
+            scene_bg = overlay_rgba(scene_bg, character)
+        else:
+            scene_bg = overlay_rgba(scene_bg, place_overlay(character, w, h, x_shift=CHARACTER_X_SHIFT))
+
+    # Converter pra escala de cinza se necessário
+    fgr = bgr.copy()
+    if person_bw:
+        b, g, r = bgr[..., 0], bgr[..., 1], bgr[..., 2]
+        y = 0.114 * b + 0.587 * g + 0.299 * r
+        fgr = np.stack([y, y, y], axis=-1)
+
+    a = mask_f[:, :, None]
+    scene = fgr.astype(np.float32) * a + scene_bg.astype(np.float32) * (1.0 - a)
+    scene = np.clip(scene, 0, 255).astype(np.uint8)
+    return overlay_rgba(scene, frame_rgba)
+
+
+class BoothMediaPipe:
+    def __init__(self):
+        self.segmenter = None
+        try:
+            BaseOptions = mp.tasks.BaseOptions
+            ImageSegmenter = mp.tasks.vision.ImageSegmenter
+            ImageSegmenterOptions = mp.tasks.vision.ImageSegmenterOptions
+            VisionRunningMode = mp.tasks.vision.RunningMode
+
+            options = ImageSegmenterOptions(
+                base_options=BaseOptions(model_asset_path="mediapipe/models/selfie_segmenter.tflite"),
+                running_mode=VisionRunningMode.IMAGE,
+                output_category_mask=True
+            )
+            self.segmenter = ImageSegmenter.create_from_options(options)
+        except Exception as e:
+            print(f"⚠️ MediaPipe init failed: {e}")
+
+        self.infer_lock = threading.RLock()
+        self._bg_cache = {}
+        self._frame_cache = {}
+
+        char_png = OVERLAY_DIR / "personagem.png"
+        char_webp = OVERLAY_DIR / "personagem.webp"
+        if char_png.exists():
+            self._character = cv2.imread(str(char_png), cv2.IMREAD_UNCHANGED)
+        else:
+            self._character = cv2.imread(str(char_webp), cv2.IMREAD_UNCHANGED)
+        self._character_placed = None
+        self._scene_cache = {}
+
+    def _assets(self, bg_name, frame_name, tw, th):
+        bg_key = (bg_name, tw, th)
+        fr_key = (frame_name, tw, th)
+        if bg_key not in self._bg_cache:
+            self._bg_cache[bg_key] = load_bg(bg_name, tw, th)
+        if fr_key not in self._frame_cache:
+            self._frame_cache[fr_key] = load_frame(frame_name, tw, th) if frame_name else None
+        return self._bg_cache[bg_key], self._frame_cache[fr_key]
+
+    def process(self, frame, bg_name, frame_name, person_bw=True):
+        tw, th = canvas_size(frame)
+        inset = max(2, frame.shape[0] // 40)
+        frame = frame[: frame.shape[0] - inset]
+        frame = cover_crop(frame, tw, th, zoom_out=1.0)
+
+        try:
+            with self.infer_lock:
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                segmentation_result = self.segmenter.segment(mp_image)
+                if segmentation_result.category_mask:
+                    mask = segmentation_result.category_mask.numpy_view()
+                else:
+                    mask = None
+        except Exception:
+            mask = None
+
+        background, moldura = self._assets(bg_name, frame_name, tw, th)
+        h, w = frame.shape[:2]
+        if background.shape[1] != w or background.shape[0] != h:
+            background = cv2.resize(background, (w, h), interpolation=cv2.INTER_AREA)
+
+        key = (bg_name, w, h)
+        if key not in self._scene_cache:
+            if self._character_placed is None or self._character_placed.shape[1] != w or self._character_placed.shape[0] != h:
+                self._character_placed = place_overlay(
+                    self._character, w, h, x_shift=CHARACTER_X_SHIFT
+                )
+            self._scene_cache[key] = overlay_rgba(background, self._character_placed)
+        scene_bg = self._scene_cache[key]
+
+        if moldura is not None and (moldura.shape[1] != w or moldura.shape[0] != h):
+            moldura = cv2.resize(moldura, (w, h), interpolation=cv2.INTER_AREA)
+
+        composed = compose_mediapipe(frame, mask, scene_bg, moldura, None, person_bw=person_bw)
+        ok_jpg, buf = cv2.imencode(".jpg", composed, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        jpeg = buf.tobytes() if ok_jpg else None
+        return composed, jpeg
+
+    def stop(self):
+        pass
+
+
 class CameraBooth:
     def __init__(self):
         from rvm import RVMMatting
@@ -342,6 +465,7 @@ class CameraBooth:
 
 
 booth = None
+booth_mediapipe = None
 
 
 def ensure_photo_dirs():
@@ -358,6 +482,17 @@ def get_booth():
         except Exception:
             booth = False
     return booth if booth else None
+
+
+def get_booth_mediapipe():
+    global booth_mediapipe
+    if booth_mediapipe is None:
+        ensure_photo_dirs()
+        try:
+            booth_mediapipe = BoothMediaPipe()
+        except Exception:
+            booth_mediapipe = False
+    return booth_mediapipe if booth_mediapipe else None
 
 
 def frame_labels():
@@ -506,38 +641,34 @@ def upload_frame():
         if g.sid in _sessions:
             _sessions[g.sid]["last_frame_raw"] = img.copy()
 
-    booth = get_booth()
-    if booth is None:
+    # Usar MediaPipe para preview (muito mais rápido!)
+    booth_mp = get_booth_mediapipe()
+    if booth_mp is None:
         return Response(data, mimetype="image/jpeg")
     with _lock:
         sess = _sessions[g.sid]
-        rec = sess["rec"]
         bg_name = sess["background"]
         frame_name = sess["frame"]
         person_bw = sess.get("person_bw", True)
-        cached = sess.get("last_jpeg")
-    if not booth.infer_lock.acquire(blocking=False):
+        cached = sess.get("last_jpeg_mp")
+    if not booth_mp.infer_lock.acquire(blocking=False):
         if cached:
             return Response(cached, mimetype="image/jpeg")
         return jsonify(ok=False), 503
-    booth._busy = True
     try:
-        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw, downsample=0.95)
+        composed, jpeg = booth_mp.process(img, bg_name, frame_name, person_bw=person_bw)
     except Exception:
-        with _lock:
-            rec = [None, None, None, None]
-            _sessions[g.sid]["rec"] = rec
-        composed, jpeg, rec = booth.process(img, rec, bg_name, frame_name, person_bw=person_bw, downsample=0.95)
+        composed, jpeg = None, None
     finally:
-        booth._busy = False
-        booth.infer_lock.release()
+        booth_mp.infer_lock.release()
     if jpeg is None:
+        if cached:
+            return Response(cached, mimetype="image/jpeg")
         return jsonify(ok=False), 500
     with _lock:
         sess = _sessions[g.sid]
-        sess["rec"] = rec
-        sess["last_jpeg"] = jpeg
-        sess["last_bgr"] = composed
+        sess["last_jpeg_mp"] = jpeg
+        sess["last_bgr_mp"] = composed
         sess["seen"] = time.time()
     return Response(jpeg, mimetype="image/jpeg")
 

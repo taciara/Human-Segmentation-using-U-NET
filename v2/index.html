@@ -235,6 +235,8 @@
         <div class="error" id="error"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js"></script>
+
     <script>
         // Estado global
         let state = {
@@ -246,6 +248,11 @@
             capturedPhoto: null,
             isProcessing: false
         };
+
+        // Aguardar MediaPipe carregar
+        let MediaPipeVision = null;
+        let FilesetResolver = null;
+        let ImageSegmenter = null;
 
         function showError(message) {
             const errorEl = document.getElementById('error');
@@ -324,9 +331,19 @@
             try {
                 updateStatus('Carregando MediaPipe...');
 
-                const { FilesetResolver, ImageSegmenter } = await import(
-                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
-                );
+                // Aguardar MediaPipe do CDN ficar disponível
+                let attempts = 0;
+                while ((!window.FilesetResolver || !window.ImageSegmenter) && attempts < 10) {
+                    await new Promise(r => setTimeout(r, 500));
+                    attempts++;
+                }
+
+                const FilesetResolver = window.FilesetResolver;
+                const ImageSegmenter = window.ImageSegmenter;
+
+                if (!FilesetResolver || !ImageSegmenter) {
+                    throw new Error('MediaPipe não carregou. Verifique sua conexão.');
+                }
 
                 const vision = await FilesetResolver.forVisionTasks(
                     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
@@ -341,7 +358,7 @@
                     outputConfidenceMasks: false
                 });
 
-                updateStatus('MediaPipe OK');
+                updateStatus('MediaPipe OK! ✅');
             } catch (err) {
                 showError('Erro ao carregar MediaPipe: ' + err.message);
                 throw err;

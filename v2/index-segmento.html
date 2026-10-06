@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fanta Photobooth V2 - Com Segmentação</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .screen {
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .screen.active {
+            display: flex;
+        }
+        #startScreen {
+            background: linear-gradient(135deg, #ff6a00 0%, #ff5a00 100%);
+            gap: 2rem;
+        }
+        #cameraScreen {
+            background: #000;
+            position: relative;
+        }
+        #video {
+            display: none;
+        }
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .camera-controls {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 1rem;
+            z-index: 10;
+        }
+        .camera-controls button {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            background: #fff;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        .camera-controls button:hover {
+            transform: scale(1.05);
+        }
+        .status {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(0,0,0,0.7);
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+        #resultScreen {
+            background: #000;
+            gap: 2rem;
+        }
+        .result-image {
+            max-width: 80vw;
+            max-height: 50vh;
+            border: 5px solid #ff6a00;
+            border-radius: 10px;
+        }
+        .result-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            background: #fff;
+            color: #000;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .logo {
+            font-size: 3rem;
+        }
+        .title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .countdown {
+            font-size: 5rem;
+            font-weight: bold;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0,0,0,0.9);
+            padding: 2rem;
+            border-radius: 10px;
+            z-index: 100;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #ff6a00;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- TELA INICIAL -->
+        <div id="startScreen" class="screen active">
+            <div class="logo">🎃</div>
+            <div class="title">Photobooth Halloween</div>
+            <button onclick="startCamera()">COMEÇAR</button>
+        </div>
+
+        <!-- TELA CÂMERA -->
+        <div id="cameraScreen" class="screen">
+            <video id="video" playsinline autoplay></video>
+            <canvas id="canvas"></canvas>
+            <div class="status" id="status">Carregando segmentação...</div>
+            <div id="loadingOverlay" class="loading">
+                <div class="spinner"></div>
+                <div>Preparando...</div>
+            </div>
+            <div class="camera-controls">
+                <button id="captureBtn" onclick="capturePhoto()">📸</button>
+                <button onclick="goToStart()">✕</button>
+            </div>
+        </div>
+
+        <!-- TELA CONTAGEM -->
+        <div id="countdownScreen" class="screen">
+            <div class="countdown" id="countdownNumber">3</div>
+        </div>
+
+        <!-- TELA RESULTADO -->
+        <div id="resultScreen" class="screen">
+            <h1>SUA FOTO</h1>
+            <canvas id="resultCanvas" class="result-image"></canvas>
+            <div class="result-buttons">
+                <button onclick="goToStart()">REFAZER</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js"></script>
+
+    <script>
+        let state = {
+            video: null,
+            canvas: null,
+            ctx: null,
+            segmenter: null,
+            capturedPhoto: null,
+            isProcessing: false,
+            segmenterReady: false
+        };
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        async function waitForMediaPipe(maxWait = 60000) {
+            const startTime = Date.now();
+            while (Date.now() - startTime < maxWait) {
+                if (window.FilesetResolver && window.ImageSegmenter) {
+                    return true;
+                }
+                await new Promise(r => setTimeout(r, 500));
+            }
+            throw new Error('MediaPipe não carregou');
+        }
+
+        async function initSegmenter() {
+            try {
+                await waitForMediaPipe();
+
+                const { FilesetResolver, ImageSegmenter } = window;
+                const vision = await FilesetResolver.forVisionTasks(
+                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+                );
+
+                state.segmenter = await ImageSegmenter.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float32/latest/selfie_segmenter.tflite'
+                    },
+                    runningMode: 'VIDEO',
+                    outputCategoryMask: true,
+                    outputConfidenceMasks: false
+                });
+
+                state.segmenterReady = true;
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('status').textContent = '✅ Pronto!';
+            } catch (err) {
+                document.getElementById('status').textContent = '⚠️ Erro: ' + err.message;
+                console.error(err);
+            }
+        }
+
+        async function startCamera() {
+            showScreen('cameraScreen');
+
+            try {
+                state.video = document.getElementById('video');
+                state.canvas = document.getElementById('canvas');
+                state.ctx = state.canvas.getContext('2d');
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        facingMode: 'user'
+                    },
+                    audio: false
+                });
+
+                state.video.srcObject = stream;
+                await new Promise(resolve => {
+                    state.video.onloadedmetadata = resolve;
+                });
+
+                state.canvas.width = state.video.videoWidth;
+                state.canvas.height = state.video.videoHeight;
+
+                // Inicializar segmenter
+                await initSegmenter();
+
+                processFrame();
+                document.getElementById('captureBtn').disabled = false;
+            } catch (err) {
+                alert('Erro: ' + err.message);
+                goToStart();
+            }
+        }
+
+        function processFrame() {
+            const ctx = state.ctx;
+            const video = state.video;
+            const canvas = state.canvas;
+
+            // Desenhar fundo Fanta
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#ff6a00');
+            gradient.addColorStop(1, '#ff5a00');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Se segmenter pronto, fazer segmentação
+            if (state.segmenterReady && state.segmenter) {
+                try {
+                    const timestamp = performance.now();
+                    const result = state.segmenter.segmentForVideo(video, timestamp);
+
+                    if (result.categoryMask) {
+                        const mask = result.categoryMask.getAsFloat32Array();
+                        const imageData = ctx.createImageData(canvas.width, canvas.height);
+                        const data = imageData.data;
+
+                        // Copiar apenas pixels da pessoa (máscara)
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const videoImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const videoData = videoImageData.data;
+
+                        for (let i = 0; i < mask.length; i++) {
+                            const isForeground = mask[i] > 0.5;
+                            const pixelIndex = i * 4;
+
+                            if (isForeground) {
+                                data[pixelIndex] = videoData[pixelIndex];
+                                data[pixelIndex + 1] = videoData[pixelIndex + 1];
+                                data[pixelIndex + 2] = videoData[pixelIndex + 2];
+                                data[pixelIndex + 3] = 255;
+                            }
+                        }
+
+                        // Redraw fundo
+                        ctx.fillStyle = gradient;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        // Colocar pessoa por cima
+                        ctx.putImageData(imageData, 0, 0);
+                    }
+                } catch (err) {
+                    console.error('Erro na segmentação:', err);
+                }
+            } else {
+                // Fallback: apenas câmera com fundo
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
+
+            requestAnimationFrame(processFrame);
+        }
+
+        async function capturePhoto() {
+            if (state.isProcessing) return;
+            state.isProcessing = true;
+
+            for (let i = 3; i > 0; i--) {
+                showScreen('countdownScreen');
+                document.getElementById('countdownNumber').textContent = i;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            showScreen('cameraScreen');
+            await new Promise(r => setTimeout(r, 500));
+
+            state.capturedPhoto = state.canvas.toDataURL('image/jpeg', 0.95);
+
+            const resultCanvas = document.getElementById('resultCanvas');
+            const img = new Image();
+            img.onload = () => {
+                resultCanvas.width = img.width;
+                resultCanvas.height = img.height;
+                resultCanvas.getContext('2d').drawImage(img, 0, 0);
+                showScreen('resultScreen');
+            };
+            img.src = state.capturedPhoto;
+
+            state.isProcessing = false;
+        }
+
+        function goToStart() {
+            if (state.video && state.video.srcObject) {
+                state.video.srcObject.getTracks().forEach(t => t.stop());
+            }
+            showScreen('startScreen');
+        }
+    </script>
+</body>
+</html>

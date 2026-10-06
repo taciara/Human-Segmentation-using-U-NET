@@ -31,5 +31,9 @@
             android:name=".ImageConfigActivity"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <activity
+            android:name=".CameraConfigActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
     </application>
 </manifest>

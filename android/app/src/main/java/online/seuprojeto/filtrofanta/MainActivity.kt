@@ -195,16 +195,30 @@ class MainActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Configuração")
-            .setMessage("Digite a senha para alterar fundos e personagem.")
+            .setMessage("Digite a senha para acessar o menu.")
             .setView(input)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Entrar") { _, _ ->
                 if (input.text.toString() == BoothImageConfig.ADMIN_PIN) {
-                    imageConfigLauncher.launch(Intent(this, ImageConfigActivity::class.java))
+                    showConfigMenu()
                 } else {
                     Toast.makeText(this, "Senha incorreta", Toast.LENGTH_SHORT).show()
                 }
             }
+            .show()
+    }
+
+    private fun showConfigMenu() {
+        val options = arrayOf("Alterar fundos e personagem", "Selecionar câmera")
+        AlertDialog.Builder(this)
+            .setTitle("Menu de Configuração")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> imageConfigLauncher.launch(Intent(this, ImageConfigActivity::class.java))
+                    1 -> startActivity(Intent(this, CameraConfigActivity::class.java))
+                }
+            }
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
@@ -294,6 +308,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun startUvc() {
         if (uvc != null) return
+        val prefs = getSharedPreferences("BoothPrefs", MODE_PRIVATE)
+        val cameraType = prefs.getString("cameraType", "emeet") ?: "emeet"
+
+        if (cameraType != "emeet") {
+            statusText.text = "Câmera do dispositivo não disponível nesta versão\nUsando EMEET..."
+            mainHandler.postDelayed({ startUvc() }, 2000L)
+            return
+        }
+
         uvc = UvcCameraController(
             this,
             uvcTexture,

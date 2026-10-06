@@ -209,13 +209,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showConfigMenu() {
-        val options = arrayOf("Alterar fundos e personagem")
+        val options = arrayOf("Alterar fundos e personagem", "Qualidade da foto")
         AlertDialog.Builder(this)
             .setTitle("Menu de Configuração")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> imageConfigLauncher.launch(Intent(this, ImageConfigActivity::class.java))
+                    1 -> showQualityMenu()
                 }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun showQualityMenu() {
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val currentQuality = prefs.getString("captureQuality", "high") ?: "high"
+
+        val qualities = arrayOf("Padrão (960x720)", "Alta (1280x960)", "Máxima (1920x1440)")
+        val qualityKeys = arrayOf("high", "higher", "max")
+        val checkedItem = qualityKeys.indexOf(currentQuality)
+
+        AlertDialog.Builder(this)
+            .setTitle("Qualidade da Foto")
+            .setSingleChoiceItems(qualities, checkedItem) { dialog, which ->
+                val selected = qualityKeys[which]
+                prefs.edit().putString("captureQuality", selected).apply()
+
+                val (w, h) = when (selected) {
+                    "high" -> 960 to 720
+                    "higher" -> 1280 to 960
+                    "max" -> 1920 to 1440
+                    else -> 960 to 720
+                }
+                uvc?.setCaptureResolution(w, h)
+
+                dialog.dismiss()
             }
             .setNegativeButton("Cancelar", null)
             .show()
@@ -312,9 +341,20 @@ class MainActivity : AppCompatActivity() {
             uvcTexture,
             onStatus = { msg -> mainHandler.post { statusText.text = msg } },
             onFrameBitmap = { bmp -> enqueueFrame(bmp) },
-        ).also {
-            uvcTexture.surfaceTextureListener = it
-            it.start()
+        ).also { controller ->
+            // Restaurar qualidade de foto salva
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val quality = prefs.getString("captureQuality", "high") ?: "high"
+            val (w, h) = when (quality) {
+                "high" -> 960 to 720
+                "higher" -> 1280 to 960
+                "max" -> 1920 to 1440
+                else -> 960 to 720
+            }
+            controller.setCaptureResolution(w, h)
+
+            uvcTexture.surfaceTextureListener = controller
+            controller.start()
         }
     }
 

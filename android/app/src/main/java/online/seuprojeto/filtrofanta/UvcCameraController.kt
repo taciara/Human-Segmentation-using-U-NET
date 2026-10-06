@@ -35,6 +35,8 @@ class UvcCameraController(
     private var previewReady = false
     private var previewW = 640
     private var previewH = 480
+    private var captureW = 960  // Resolução de captura (foto) - maior que preview
+    private var captureH = 720
     private val stillLock = Any()
     private var lastNv21: ByteArray? = null
     private var lastJpeg: ByteArray? = null
@@ -43,6 +45,12 @@ class UvcCameraController(
     private var previewSurface: SurfaceTexture? = null
     private var previewGlThread: HandlerThread? = null
     private var frameLog = 0
+
+    fun setCaptureResolution(w: Int, h: Int) {
+        captureW = w
+        captureH = h
+        Log.i(TAG, "Resolução de captura: ${captureW}x${captureH}")
+    }
 
     fun start() {
         if (usbStarted && cameraHelper != null) return

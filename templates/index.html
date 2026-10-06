@@ -663,13 +663,12 @@
         const preview = document.getElementById("preview");
         const previewBox = document.getElementById("previewBox");
         const sendCanvas = document.createElement("canvas");
-        let sendW = 720;
-        let sendH = 405;
+        let sendW = 360; // Reduzido de 720 (50% menor = 4x menos pixels)
+        let sendH = 202; // Reduzido de 405
         const sendCtx = sendCanvas.getContext("2d", { alpha: false });
         sendCanvas.width = sendW;
         sendCanvas.height = sendH;
-        sendCtx.imageSmoothingEnabled = true;
-        sendCtx.imageSmoothingQuality = "high";
+        sendCtx.imageSmoothingEnabled = false; // Sem suavização = mais rápido
         let lastBlobUrl = null;
 
         function isPortraitFeed() {
@@ -681,17 +680,16 @@
 
         function syncCanvas() {
             if (isPortraitFeed()) {
-                sendW = 480;
-                sendH = 600;
+                sendW = 240; // Reduzido de 480
+                sendH = 300; // Reduzido de 600
             } else {
-                sendW = 720;
-                sendH = 405;
+                sendW = 360; // Reduzido de 720
+                sendH = 202; // Reduzido de 405
             }
             if (sendCanvas.width !== sendW || sendCanvas.height !== sendH) {
                 sendCanvas.width = sendW;
                 sendCanvas.height = sendH;
-                sendCtx.imageSmoothingEnabled = true;
-                sendCtx.imageSmoothingQuality = "high";
+                sendCtx.imageSmoothingEnabled = false;
             }
         }
 
@@ -872,7 +870,7 @@
                 await listCams();
             });
             let inFlight = false;
-            const FRAME_INTERVAL = 1500; // ~1 FPS: deixa servidor processar COM ghostface
+            const FRAME_INTERVAL = 1000; // 1 FPS: com resolução 50% menor, bem mais rápido
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
                     setTimeout(pushFrame, FRAME_INTERVAL);

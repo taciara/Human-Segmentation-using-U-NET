@@ -872,7 +872,7 @@
                 await listCams();
             });
             let inFlight = false;
-            const FRAME_INTERVAL = 150; // Intervalo otimizado: espera processamento mas é responsivo
+            const FRAME_INTERVAL = 250; // 4 FPS: deixa servidor acompanhar, zero delay
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
                     setTimeout(pushFrame, FRAME_INTERVAL);

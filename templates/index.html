@@ -881,7 +881,8 @@
                 inFlight = true;
                 try {
                     drawMirrored();
-                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.62));
+                    // Qualidade MUITO reduzida para speed (0.62 → 0.35)
+                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.35));
                     if (blob) {
                         const res = await fetch("/frame", {
                             method: "POST",

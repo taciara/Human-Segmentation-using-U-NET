@@ -88,6 +88,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var segmenter: SegmentationEngine
     private lateinit var compositor: BoothCompositor
     private var uvc: UvcCameraController? = null
+    private var deviceCamera: DeviceCameraController? = null
 
     private var lastRaw: Bitmap? = null
     private var lastPreview: Bitmap? = null

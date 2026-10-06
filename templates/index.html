@@ -872,7 +872,7 @@
                 await listCams();
             });
             let inFlight = false;
-            const FRAME_INTERVAL = 300; // 3 FPS: deixa servidor processar
+            const FRAME_INTERVAL = 1500; // ~1 FPS: deixa servidor processar COM ghostface
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
                     setTimeout(pushFrame, FRAME_INTERVAL);

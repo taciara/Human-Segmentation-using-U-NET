@@ -305,7 +305,7 @@ class CameraBooth:
             self._frame_cache[fr_key] = load_frame(frame_name, tw, th) if frame_name else None
         return self._bg_cache[bg_key], self._frame_cache[fr_key]
 
-    def process(self, frame, rec, bg_name, frame_name, person_bw=True, downsample=0.6):
+    def process(self, frame, rec, bg_name, frame_name, person_bw=True, downsample=0.8):
         tw, th = canvas_size(frame)
         inset = max(2, frame.shape[0] // 40)
         frame = frame[: frame.shape[0] - inset]

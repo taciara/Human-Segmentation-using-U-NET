@@ -848,6 +848,9 @@
             let stream = await openCam();
             cam.srcObject = stream;
             await safePlay(cam);
+            cam.style.opacity = "1";
+            previewBox.classList.add("has-feed");
+            document.body.classList.add("has-feed");
             const cams = await listCams();
             const preferred = await pickDeviceId(cams);
             const currentId = stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId;

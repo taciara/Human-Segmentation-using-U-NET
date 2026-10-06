@@ -9,8 +9,6 @@ import cv2
 import numpy as np
 from flask import Flask, Response, g, jsonify, make_response, render_template, request, send_from_directory, url_for
 
-from rvm import RVMMatting
-
 ROOT = Path(__file__).resolve().parent
 BG_DIR = ROOT / "assets" / "backgrounds"
 FRAME_DIR = ROOT / "assets" / "frames"
@@ -281,6 +279,8 @@ def compose_rvm(fgr_rgb, pha, background, frame_rgba, character=None, person_bw=
 
 class CameraBooth:
     def __init__(self):
+        from rvm import RVMMatting
+
         self.rvm = RVMMatting()
         self.infer_lock = threading.RLock()
         self._busy = False
@@ -346,8 +346,11 @@ def get_booth():
     global booth
     if booth is None:
         ensure_photo_dirs()
-        booth = CameraBooth()
-    return booth
+        try:
+            booth = CameraBooth()
+        except Exception:
+            booth = False
+    return booth if booth else None
 
 
 def frame_labels():
@@ -491,6 +494,8 @@ def upload_frame():
     if img is None:
         return jsonify(ok=False), 400
     booth = get_booth()
+    if booth is None:
+        return Response(data, mimetype="image/jpeg")
     with _lock:
         sess = _sessions[g.sid]
         rec = sess["rec"]
@@ -657,7 +662,7 @@ def photo_file(name):
 
 
 if __name__ == "__main__":
-    get_booth()
+    ensure_photo_dirs()
     try:
         print("Photobooth: http://127.0.0.1:5000")
         print("Túnel: https://fanta-filtro.seuprojeto.online")

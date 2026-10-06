@@ -32,9 +32,11 @@ class DeviceCameraController(
     private var captureSession: CameraCaptureSession? = null
     private var imageReader: ImageReader? = null
     private var started = false
-    private val previewW = 640
-    private val previewH = 480
+    private val previewW = 320
+    private val previewH = 240
     private var frameCount = 0
+    private var lastFrameTime = 0L
+    private val frameIntervalMs = 100 // Limitar a 10 FPS
 
     fun start() {
         if (started) return
@@ -77,12 +79,18 @@ class DeviceCameraController(
             }
 
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val cameraId = cameraManager.cameraIdList.firstOrNull() ?: run {
-                mainHandler.post { onStatus("Câmera: nenhuma câmera encontrada") }
-                return
+
+            // Preferir câmera frontal (ID 1), se não existir, usar traseira (ID 0)
+            var cameraId = "1"
+            val availableCameras = cameraManager.cameraIdList
+            if ("1" !in availableCameras) {
+                cameraId = availableCameras.firstOrNull() ?: run {
+                    mainHandler.post { onStatus("Câmera: nenhuma câmera encontrada") }
+                    return
+                }
             }
 
-            Log.i(TAG, "Abrindo câmera: $cameraId")
+            Log.i(TAG, "Abrindo câmera frontal: $cameraId (disponíveis: ${availableCameras.joinToString()})")
             cameraManager.openCamera(cameraId, object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
                     Log.i(TAG, "Camera device opened")
@@ -117,9 +125,16 @@ class DeviceCameraController(
             imageReader!!.setOnImageAvailableListener({ reader ->
                 val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
+                    // Throttle: processar apenas 1 frame a cada 100ms
+                    val now = System.currentTimeMillis()
+                    if (now - lastFrameTime < frameIntervalMs) {
+                        return@setOnImageAvailableListener
+                    }
+                    lastFrameTime = now
+
                     frameCount++
-                    if (frameCount % 30 == 0) {
-                        Log.i(TAG, "Frames recebidos: $frameCount (${image.width}x${image.height})")
+                    if (frameCount % 10 == 0) {
+                        Log.i(TAG, "Frames processados: $frameCount (${image.width}x${image.height})")
                     }
                     val bitmap = yuvToRgb(image)
                     onFrameBitmap(bitmap)
@@ -128,12 +143,7 @@ class DeviceCameraController(
                 }
             }, mainHandler)
 
-            val surfaces = listOf(
-                imageReader!!.surface,
-                Surface(textureView.surfaceTexture)
-            )
-
-            camera.createCaptureSession(surfaces, object : CameraCaptureSession.StateCallback() {
+            camera.createCaptureSession(listOf(imageReader!!.surface), object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     Log.i(TAG, "Capture session configured")
                     captureSession = session
@@ -159,7 +169,7 @@ class DeviceCameraController(
                 set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
             }
             captureSession?.setRepeatingRequest(captureRequest.build(), null, mainHandler)
-            Log.i(TAG, "Preview started")
+            Log.i(TAG, "Preview started (ImageReader only)")
             mainHandler.post { onStatus("Câmera do dispositivo conectada") }
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao iniciar preview", e)

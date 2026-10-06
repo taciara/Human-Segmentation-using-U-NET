@@ -88,7 +88,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var segmenter: SegmentationEngine
     private lateinit var compositor: BoothCompositor
     private var uvc: UvcCameraController? = null
-    private var deviceCamera: DeviceCameraController? = null
 
     private var lastRaw: Bitmap? = null
     private var lastPreview: Bitmap? = null
@@ -210,13 +209,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showConfigMenu() {
-        val options = arrayOf("Alterar fundos e personagem", "Selecionar câmera")
+        val options = arrayOf("Alterar fundos e personagem")
         AlertDialog.Builder(this)
             .setTitle("Menu de Configuração")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> imageConfigLauncher.launch(Intent(this, ImageConfigActivity::class.java))
-                    1 -> startActivity(Intent(this, CameraConfigActivity::class.java))
                 }
             }
             .setNegativeButton("Cancelar", null)
@@ -309,8 +307,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun startUvc() {
         if (uvc != null) return
-        // TODO: Implementar DeviceCameraController corretamente quando houver mais tempo para debug
-        // Por enquanto, só usa EMEET (padrão e funciona bem nas tablets)
         uvc = UvcCameraController(
             this,
             uvcTexture,
@@ -604,7 +600,6 @@ class MainActivity : AppCompatActivity() {
         processExecutor.shutdownNow()
         shareExecutor.shutdownNow()
         uvc?.release()
-        deviceCamera?.stop()
         if (::compositor.isInitialized) compositor.release()
         if (::segmenter.isInitialized) segmenter.close()
         lastPreview?.recycle()

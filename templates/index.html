@@ -872,7 +872,7 @@
                 await listCams();
             });
             let inFlight = false;
-            const FRAME_INTERVAL = 130; // 7-8 FPS: mais rápido que processamento, menos delay
+            const FRAME_INTERVAL = 50; // 20 FPS: rápido, mas APENAS preview (sem IA)
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
                     setTimeout(pushFrame, FRAME_INTERVAL);
@@ -881,23 +881,16 @@
                 inFlight = true;
                 try {
                     drawMirrored();
+                    // Preview: mostrar câmera RAW (sem processamento) = super rápido
                     const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.62));
                     if (blob) {
-                        const res = await fetch("/frame", {
-                            method: "POST",
-                            body: blob,
-                            credentials: "same-origin"
-                        });
-                        if (res.ok && res.headers.get("content-type") && res.headers.get("content-type").includes("image/jpeg")) {
-                            const out = await res.blob();
-                            const url = URL.createObjectURL(out);
-                            preview.src = url;
-                            preview.hidden = false;
-                            preview.classList.add("is-on");
-                            previewBox.classList.add("has-feed");
-                            if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-                            lastBlobUrl = url;
-                        }
+                        const url = URL.createObjectURL(blob);
+                        preview.src = url;
+                        preview.hidden = false;
+                        preview.classList.add("is-on");
+                        previewBox.classList.add("has-feed");
+                        if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+                        lastBlobUrl = url;
                     }
                 } finally {
                     inFlight = false;

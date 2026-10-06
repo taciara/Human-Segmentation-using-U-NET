@@ -330,17 +330,23 @@ class BoothMediaPipe:
     def __init__(self):
         self.segmenter = None
         try:
-            BaseOptions = mp.tasks.BaseOptions
-            ImageSegmenter = mp.tasks.vision.ImageSegmenter
-            ImageSegmenterOptions = mp.tasks.vision.ImageSegmenterOptions
-            VisionRunningMode = mp.tasks.vision.RunningMode
+            from mediapipe.tasks import python
+            from mediapipe.tasks.python import vision
 
+            BaseOptions = python.BaseOptions
+            ImageSegmenter = vision.ImageSegmenter
+            ImageSegmenterOptions = vision.ImageSegmenterOptions
+            VisionRunningMode = vision.RunningMode
+
+            # Auto-download model from MediaPipe
+            model_path = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float32/latest/selfie_segmenter.tflite"
             options = ImageSegmenterOptions(
-                base_options=BaseOptions(model_asset_path="mediapipe/models/selfie_segmenter.tflite"),
+                base_options=BaseOptions(model_asset_path=model_path),
                 running_mode=VisionRunningMode.IMAGE,
                 output_category_mask=True
             )
             self.segmenter = ImageSegmenter.create_from_options(options)
+            print("✅ MediaPipe Selfie Segmentation carregado!")
         except Exception as e:
             print(f"⚠️ MediaPipe init failed: {e}")
 

@@ -872,31 +872,37 @@
                 await listCams();
             });
             let inFlight = false;
+            const FRAME_INTERVAL = 300; // 3 FPS: deixa servidor processar
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
-                    setTimeout(pushFrame, 50);
+                    setTimeout(pushFrame, FRAME_INTERVAL);
                     return;
                 }
                 inFlight = true;
                 try {
                     drawMirrored();
-                    // Preview RAW (sem IA) = ZERO DELAY, super rápido
-                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.62));
+                    // Qualidade MÍNIMA: 0.25 (muito comprimido, rápido)
+                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.25));
                     if (blob) {
-                        const url = URL.createObjectURL(blob);
-                        preview.src = url;
-                        preview.hidden = false;
-                        preview.classList.add("is-on");
-                        previewBox.classList.add("has-feed");
-                        if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-                        lastBlobUrl = url;
-
-                        // Guardar frame para /capture processar depois
-                        fetch("/frame", { method: "POST", body: blob, credentials: "same-origin" }).catch(() => {});
+                        const res = await fetch("/frame", {
+                            method: "POST",
+                            body: blob,
+                            credentials: "same-origin"
+                        });
+                        if (res.ok && res.headers.get("content-type") && res.headers.get("content-type").includes("image/jpeg")) {
+                            const out = await res.blob();
+                            const url = URL.createObjectURL(out);
+                            preview.src = url;
+                            preview.hidden = false;
+                            preview.classList.add("is-on");
+                            previewBox.classList.add("has-feed");
+                            if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+                            lastBlobUrl = url;
+                        }
                     }
                 } finally {
                     inFlight = false;
-                    setTimeout(pushFrame, 50);
+                    setTimeout(pushFrame, FRAME_INTERVAL);
                 }
             }
             pushFrame();

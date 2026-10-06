@@ -312,12 +312,12 @@ class CameraBooth:
         frame = cover_crop(frame, tw, th, zoom_out=1.0)
         try:
             with self.infer_lock:
-                # Downsample extremo = processamento mínimo (qualidade baixa, máxima velocidade)
-                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.6)
+                # Qualidade alta para foto final (não precisa ser rápido)
+                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
         except RuntimeError:
             rec = [None, None, None, None]
             with self.infer_lock:
-                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.6)
+                fgr, pha, rec = self.rvm.matting(frame, rec, downsample=0.28)
         background, moldura = self._assets(bg_name, frame_name, tw, th)
         h, w = frame.shape[:2]
         if background.shape[1] != w or background.shape[0] != h:

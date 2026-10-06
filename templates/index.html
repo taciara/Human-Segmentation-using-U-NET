@@ -872,37 +872,31 @@
                 await listCams();
             });
             let inFlight = false;
-            const FRAME_INTERVAL = 250; // 4 FPS: deixa servidor acompanhar, zero delay
             async function pushFrame() {
                 if (holdLive || document.hidden || inFlight || cam.readyState < 2 || !cam.videoWidth) {
-                    setTimeout(pushFrame, FRAME_INTERVAL);
+                    setTimeout(pushFrame, 50);
                     return;
                 }
                 inFlight = true;
                 try {
                     drawMirrored();
-                    // Qualidade MUITO reduzida para speed (0.62 → 0.35)
-                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.35));
+                    // Preview RAW (sem IA) = ZERO DELAY, super rápido
+                    const blob = await new Promise((r) => sendCanvas.toBlob(r, "image/jpeg", 0.62));
                     if (blob) {
-                        const res = await fetch("/frame", {
-                            method: "POST",
-                            body: blob,
-                            credentials: "same-origin"
-                        });
-                        if (res.ok && res.headers.get("content-type") && res.headers.get("content-type").includes("image/jpeg")) {
-                            const out = await res.blob();
-                            const url = URL.createObjectURL(out);
-                            preview.src = url;
-                            preview.hidden = false;
-                            preview.classList.add("is-on");
-                            previewBox.classList.add("has-feed");
-                            if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-                            lastBlobUrl = url;
-                        }
+                        const url = URL.createObjectURL(blob);
+                        preview.src = url;
+                        preview.hidden = false;
+                        preview.classList.add("is-on");
+                        previewBox.classList.add("has-feed");
+                        if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+                        lastBlobUrl = url;
+
+                        // Guardar frame para /capture processar depois
+                        fetch("/frame", { method: "POST", body: blob, credentials: "same-origin" }).catch(() => {});
                     }
                 } finally {
                     inFlight = false;
-                    setTimeout(pushFrame, FRAME_INTERVAL);
+                    setTimeout(pushFrame, 50);
                 }
             }
             pushFrame();

@@ -330,22 +330,10 @@ class BoothMediaPipe:
     def __init__(self):
         self.segmenter = None
         try:
-            from mediapipe.tasks import python
-            from mediapipe.tasks.python import vision
+            from mediapipe.solutions import selfie_segmentation
 
-            BaseOptions = python.BaseOptions
-            ImageSegmenter = vision.ImageSegmenter
-            ImageSegmenterOptions = vision.ImageSegmenterOptions
-            VisionRunningMode = vision.RunningMode
-
-            # Auto-download model from MediaPipe
-            model_path = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float32/latest/selfie_segmenter.tflite"
-            options = ImageSegmenterOptions(
-                base_options=BaseOptions(model_asset_path=model_path),
-                running_mode=VisionRunningMode.IMAGE,
-                output_category_mask=True
-            )
-            self.segmenter = ImageSegmenter.create_from_options(options)
+            # API simples com auto-download automático
+            self.segmenter = selfie_segmentation.SelfieSegmentation(model_selection=0)
             print("✅ MediaPipe Selfie Segmentation carregado!")
         except Exception as e:
             print(f"⚠️ MediaPipe init failed: {e}")
@@ -378,16 +366,18 @@ class BoothMediaPipe:
         frame = frame[: frame.shape[0] - inset]
         frame = cover_crop(frame, tw, th, zoom_out=1.0)
 
-        try:
-            with self.infer_lock:
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                segmentation_result = self.segmenter.segment(mp_image)
-                if segmentation_result.category_mask:
-                    mask = segmentation_result.category_mask.numpy_view()
-                else:
-                    mask = None
-        except Exception:
-            mask = None
+        mask = None
+        if self.segmenter is not None:
+            try:
+                with self.infer_lock:
+                    # API simples do MediaPipe
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = self.segmenter.process(rgb_frame)
+                    if results.segmentation_mask is not None:
+                        mask = (results.segmentation_mask * 255).astype(np.uint8)
+            except Exception as e:
+                print(f"MediaPipe segment error: {e}")
+                mask = None
 
         background, moldura = self._assets(bg_name, frame_name, tw, th)
         h, w = frame.shape[:2]

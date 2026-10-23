@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <TextureView
+        android:id="@+id/uvc"
+        android:layout_width="2dp"
+        android:layout_height="2dp"
+        android:importantForAccessibility="no" />
+
+    <online.seuprojeto.filtrofanta.DripBackgroundView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- TELA CAPTURA (#capture) -->
+    <LinearLayout
+        android:id="@+id/screenCapture"
+        style="@style/BoothScreen"
+        android:paddingTop="6dp"
+        android:paddingBottom="0dp">
+
+        <ImageView
+            android:id="@+id/topLogoCapture"
+            style="@style/BoothTopLogo"
+            android:contentDescription="Logo Fanta" />
+
+        <LinearLayout
+            android:id="@+id/lookToggle"
+            android:layout_width="@dimen/look_toggle_width"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/look_toggle_panel"
+            android:baselineAligned="false"
+            android:orientation="horizontal"
+            android:padding="5dp">
+
+            <TextView
+                android:id="@+id/lookColor"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/look_toggle_chip_off"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/fanta_pop_condensed"
+                android:gravity="center"
+                android:paddingStart="6dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="10dp"
+                android:text="Colorido"
+                android:textAllCaps="true"
+                android:textColor="@color/look_toggle_off"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lookBw"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:background="@drawable/look_toggle_chip_on"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/fanta_pop_condensed"
+                android:gravity="center"
+                android:paddingStart="6dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="10dp"
+                android:text="Preto e Branco"
+                android:textAllCaps="true"
+                android:textColor="@color/ink"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginStart="@dimen/screen_gutter"
+            android:layout_marginTop="0dp"
+            android:layout_marginEnd="@dimen/screen_gutter"
+            android:layout_weight="1">
+
+            <online.seuprojeto.filtrofanta.PolaroidFrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center">
+
+                <online.seuprojeto.filtrofanta.AspectRatioFrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#111111">
+
+                    <ImageView
+                        android:id="@+id/preview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="Preview"
+                        android:scaleType="centerCrop" />
+
+                    <LinearLayout
+                        android:id="@+id/loader"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <ProgressBar
+                            android:layout_width="46dp"
+                            android:layout_height="46dp"
+                            android:indeterminateTint="@color/fanta_orange" />
+
+                        <TextView
+                            android:id="@+id/statusText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:fontFamily="@font/fanta_sans_regular"
+                            android:gravity="center"
+                            android:text="Preparando câmera…"
+                            android:textColor="#D9FFFFFF"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <FrameLayout
+                        android:id="@+id/countdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/countdownNum"
+                            android:layout_width="@dimen/countdown_bubble_min"
+                            android:layout_height="@dimen/countdown_bubble_min"
+                            android:layout_gravity="center"
+                            android:background="@drawable/countdown_bubble"
+                            android:fontFamily="@font/fanta_pop_condensed"
+                            android:gravity="center"
+                            android:text="3"
+                            android:textColor="@color/ink"
+                            android:textSize="42sp"
+                            android:textStyle="bold" />
+                    </FrameLayout>
+                </online.seuprojeto.filtrofanta.AspectRatioFrameLayout>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="@dimen/polaroid_footer_min_height"
+                    android:paddingStart="10dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="6dp">
+
+                    <Button
+                        android:id="@+id/btnSnap"
+                        style="@style/BoothButtonFanta"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginStart="28dp"
+                        android:layout_marginEnd="28dp"
+                        android:text="TIRAR FOTO" />
+                </FrameLayout>
+            </online.seuprojeto.filtrofanta.PolaroidFrameLayout>
+        </FrameLayout>
+
+        <include
+            layout="@layout/include_how_panel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp" />
+    </LinearLayout>
+
+    <!-- TELA RESULTADO (#result) -->
+    <LinearLayout
+        android:id="@+id/screenResult"
+        style="@style/BoothScreen"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:paddingTop="6dp"
+        android:visibility="gone">
+
+        <ImageView style="@style/BoothTopLogo" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginStart="@dimen/screen_gutter"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="@dimen/screen_gutter"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Polaroid só com a foto; logo vem depois, por cima e para fora. -->
+            <online.seuprojeto.filtrofanta.PolaroidFrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <online.seuprojeto.filtrofanta.AspectRatioFrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#111111">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/shotImg"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:contentDescription="Sua foto"
+                            android:scaleType="centerCrop" />
+
+                        <LinearLayout
+                            android:id="@+id/prepareOverlay"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="#99000000"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <ProgressBar
+                                android:layout_width="42dp"
+                                android:layout_height="42dp"
+                                android:indeterminateTint="@color/fanta_orange" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:fontFamily="@font/fanta_sans_regular"
+                                android:gravity="center"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:text="Preparando sua foto…"
+                                android:textColor="#FFFFFFFF"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+
+                        <ImageButton
+                            android:id="@+id/btnRetake"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:layout_gravity="top|end"
+                            android:layout_margin="8dp"
+                            android:background="@drawable/btn_retake_fab"
+                            android:contentDescription="Tirar novamente"
+                            android:padding="10dp"
+                            android:scaleType="centerInside"
+                            android:src="@drawable/ic_reload" />
+                    </FrameLayout>
+                </online.seuprojeto.filtrofanta.AspectRatioFrameLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp" />
+            </online.seuprojeto.filtrofanta.PolaroidFrameLayout>
+
+            <ImageView
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-72dp"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:elevation="32dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo_fanta"
+                android:translationZ="32dp" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnShare"
+            style="@style/BoothButtonFanta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="24dp"
+            android:enabled="false"
+            android:minWidth="280dp"
+            android:text="COMPARTILHAR" />
+    </LinearLayout>
+
+    <!-- TELA PRONTO (#ready) -->
+    <LinearLayout
+        android:id="@+id/screenReady"
+        style="@style/BoothScreen"
+        android:paddingStart="19dp"
+        android:paddingEnd="19dp"
+        android:paddingBottom="24dp"
+        android:visibility="gone">
+
+        <ImageView style="@style/BoothTopLogo" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="0.70" />
+
+            <TextView
+                style="@style/BoothReadyHeadline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SUA FOTO ESTÁ PRONTA!" />
+
+            <TextView
+                style="@style/BoothReadyLead"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:maxWidth="320dp"
+                android:text="ESCANEIE O QR CODE PARA ACESSAR E COMPARTILHAR SUA FOTO." />
+
+            <FrameLayout
+                android:layout_width="@dimen/qr_box_max"
+                android:layout_height="@dimen/qr_box_max"
+                android:layout_marginTop="18dp"
+                android:background="#FFFFFF"
+                android:padding="10dp">
+
+                <ProgressBar
+                    android:id="@+id/qrWait"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="@color/fanta_orange" />
+
+                <ImageView
+                    android:id="@+id/qrImg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="QR Code da foto"
+                    android:scaleType="fitCenter" />
+            </FrameLayout>
+
+            <Button
+                android:id="@+id/btnAgain"
+                style="@style/BoothButtonAgain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="RECOMEÇAR" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1.30" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/splash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/fanta_orange"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="@dimen/top_logo_splash"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:src="@drawable/logo_fanta" />
+
+            <TextView
+                android:id="@+id/splashStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:fontFamily="@font/fanta_sans_regular"
+                android:gravity="center"
+                android:text="Carregando IA local…"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

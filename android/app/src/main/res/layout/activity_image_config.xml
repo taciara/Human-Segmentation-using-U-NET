@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#111111">
+
+<ScrollView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/fanta_pop_condensed"
+            android:gravity="center"
+            android:text="Configuração de imagens"
+            android:textColor="@color/fanta_orange"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="@font/fanta_sans_regular"
+            android:gravity="center"
+            android:text="Troque fundos e personagem por estado. O modo Colorido / P&amp;B continua alternando os dois fundos."
+            android:textColor="#CCFFFFFF"
+            android:textSize="13sp" />
+
+        <include
+            android:id="@+id/rowBgColor"
+            layout="@layout/include_image_config_row" />
+
+        <include
+            android:id="@+id/rowBgBw"
+            layout="@layout/include_image_config_row" />
+
+        <include
+            android:id="@+id/rowCharacter"
+            layout="@layout/include_image_config_row" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:fontFamily="@font/fanta_sans_regular"
+            android:gravity="center"
+            android:text="Envie ou escolha Padrão, confira a prévia e toque em Salvar."
+            android:textColor="#B3FFFFFF"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnConfigSave"
+            style="@style/BoothButtonFanta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Salvar" />
+
+        <Button
+            android:id="@+id/btnConfigCancel"
+            style="@style/BoothButtonAgain"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Cancelar" />
+    </LinearLayout>
+</ScrollView>
+
+    <LinearLayout
+        android:id="@+id/configProcessing"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:indeterminateTint="@color/fanta_orange" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/fanta_sans_regular"
+            android:text="Otimizando imagem…"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+    </LinearLayout>
+</FrameLayout>

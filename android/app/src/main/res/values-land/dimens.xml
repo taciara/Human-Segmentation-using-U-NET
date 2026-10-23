@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="polaroid_stage_max_width">220dp</dimen>
+    <dimen name="polaroid_stage_max_width_result">200dp</dimen>
+    <dimen name="how_max_width">420dp</dimen>
+    <dimen name="how_margin_bottom">12dp</dimen>
+    <dimen name="share_margin_top">16dp</dimen>
+    <dimen name="top_logo_capture">140dp</dimen>
+</resources>

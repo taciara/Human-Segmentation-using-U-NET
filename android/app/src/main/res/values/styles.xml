@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="BoothScreen">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center_horizontal</item>
+    </style>
+
+    <style name="BoothTopLogo">
+        <item name="android:layout_width">@dimen/top_logo_capture</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:adjustViewBounds">true</item>
+        <item name="android:contentDescription">@null</item>
+        <item name="android:src">@drawable/logo_fanta</item>
+    </style>
+
+    <style name="BoothHowPanel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxWidth">@dimen/how_max_width</item>
+        <item name="android:layout_gravity">center_horizontal</item>
+        <item name="android:layout_marginBottom">@dimen/how_margin_bottom</item>
+        <item name="android:background">@drawable/how_panel</item>
+        <item name="android:paddingStart">@dimen/how_pad_h</item>
+        <item name="android:paddingEnd">@dimen/how_pad_h</item>
+        <item name="android:paddingTop">@dimen/how_pad_v</item>
+        <item name="android:paddingBottom">@dimen/how_pad_v</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <style name="BoothHowTitle">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">0.9</item>
+        <item name="android:fontFamily">@font/fanta_pop_condensed</item>
+        <item name="android:text">COMO\nFUNCIONA?</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">@dimen/how_title_size</item>
+        <item name="android:lineSpacingMultiplier">0.95</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="BoothHowList">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1.4</item>
+        <item name="android:layout_marginStart">@dimen/how_column_gap</item>
+        <item name="android:paddingStart">@dimen/how_list_indent</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="BoothHowListItem">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/fanta_sans_bold</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">@dimen/how_list_size</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="BoothButtonFanta" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/bg_btn_fanta</item>
+        <item name="android:fontFamily">@font/fanta_pop_condensed</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">@dimen/btn_fanta_text</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:paddingStart">29dp</item>
+        <item name="android:paddingEnd">29dp</item>
+        <item name="android:paddingTop">11dp</item>
+        <item name="android:paddingBottom">20dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minWidth">@dimen/btn_fanta_min_width_pct</item>
+    </style>
+
+    <style name="BoothButtonAgain" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/btn_white_pill</item>
+        <item name="android:fontFamily">@font/fanta_pop_condensed</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">@dimen/btn_fanta_text</item>
+        <item name="android:paddingStart">38dp</item>
+        <item name="android:paddingEnd">38dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+    </style>
+
+    <style name="BoothReadyHeadline">
+        <item name="android:fontFamily">@font/fanta_pop_condensed</item>
+        <item name="android:textColor">@color/fanta_orange</item>
+        <item name="android:textSize">@dimen/ready_headline</item>
+        <item name="android:lineSpacingMultiplier">0.95</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="BoothReadyLead">
+        <item name="android:fontFamily">@font/fanta_sans_bold</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">@dimen/ready_lead</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:gravity">center</item>
+    </style>
+</resources>

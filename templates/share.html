@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ seo_title }}</title>
+    <meta name="description" content="{{ seo_description }}">
+    <meta name="theme-color" content="#ff6a00">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ og_url }}">
+    <meta property="og:title" content="{{ seo_title }}">
+    <meta property="og:description" content="{{ seo_og_description }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ seo_title }}">
+    <meta name="twitter:description" content="{{ seo_twitter_description }}">
+    <meta name="twitter:image" content="{{ og_image }}">
+    <style>
+        @font-face {
+            font-family: "FantaSans";
+            src: url("{{ url_for('static', filename='fonts/FantaSans-Bold.otf') }}") format("opentype");
+            font-weight: 700;
+        }
+        @font-face {
+            font-family: "FantaPop";
+            src: url("{{ url_for('static', filename='fonts/FantaPop-Condensed.otf') }}") format("opentype");
+            font-weight: 700;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            font-family: "FantaSans", sans-serif;
+            background: #000;
+            color: #fff;
+        }
+        .screen {
+            position: relative;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: visible;
+        }
+        .top-logo {
+            position: relative;
+            z-index: 3;
+            width: 190px;
+            margin-top: 0.6vh;
+        }
+        .top-logo img { width: 100%; display: block; }
+        .polaroid-stage {
+            position: relative;
+            z-index: 2;
+            width: min(72vw, 380px);
+            margin-top: 0.6vh;
+        }
+        .shot-card {
+            width: 100%;
+            display: block;
+            box-shadow: 0 22px 40px rgba(0,0,0,.5);
+        }
+        .btn-share {
+            position: relative;
+            z-index: 8;
+            border: 0;
+            cursor: pointer;
+            background: linear-gradient(#ff8a14, #ff5a00);
+            color: #111;
+            font-family: "FantaPop", "FantaSans", sans-serif;
+            font-size: clamp(1rem, 4.2vw, 1.45rem);
+            letter-spacing: .02em;
+            padding: .7rem 1.8rem;
+            border-radius: 999px;
+            min-width: min(68%, 280px);
+            box-shadow: 0 8px 0 #c43e00;
+            margin-top: 1.4rem;
+            margin-bottom: 2rem;
+        }
+        .drip-wrap { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+        .drip-wrap::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            background-image: url("{{ url_for('static', filename='img/bg_2.png') }}");
+            background-repeat: no-repeat;
+            background-position-y: 105%;
+            background-position-x: center;
+        }
+        .drip-bottom {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 100%;
+            z-index: 1;
+            background: url("{{ url_for('static', filename='img/bg_orange.png') }}") center / cover no-repeat;
+        }
+        .note {
+            position: relative;
+            z-index: 3;
+            margin-top: 1rem;
+            font-size: .8rem;
+            opacity: .8;
+            text-align: center;
+            padding: 0 1rem 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <section class="screen">
+        <div class="drip-wrap">
+            <div class="drip-bottom"></div>
+        </div>
+        <div class="top-logo"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="Fanta"></div>
+        <div class="polaroid-stage">
+            <img class="shot-card" src="{{ card_url }}" alt="Sua foto">
+        </div>
+        <button class="btn-share" id="share" type="button">COMPARTILHAR</button>
+        <p class="note" id="msg" hidden></p>
+    </section>
+    <script>
+        const cardUrl = {{ card_url|tojson }};
+        document.getElementById("share").addEventListener("click", async () => {
+            const msg = document.getElementById("msg");
+            try {
+                const res = await fetch(cardUrl, { credentials: "same-origin" });
+                const blob = await res.blob();
+                const file = new File([blob], "fanta-photobooth.jpg", { type: "image/jpeg" });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: "A abóbora pediu um gole. A Fanta Halloween atendeu. 🎃👻",
+                        text: "#FantaHalloween #AbóboraAssustada"
+                    });
+                    return;
+                }
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "fanta-photobooth.jpg";
+                a.click();
+            } catch (err) {
+                if (err && err.name === "AbortError") return;
+                msg.hidden = false;
+                msg.textContent = "Não deu para abrir o compartilhar deste aparelho. A foto foi baixada.";
+            }
+        });
+    </script>
+</body>
+</html>

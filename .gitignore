@@ -1,0 +1,12 @@
+photos/
+fanta_polaroid/*.jpg
+__pycache__/
+.venv/
+*.pyc
+access.key
+_temp/
+
+photobooth_web.zip
+
+# Atalhos Windows
+*.lnk

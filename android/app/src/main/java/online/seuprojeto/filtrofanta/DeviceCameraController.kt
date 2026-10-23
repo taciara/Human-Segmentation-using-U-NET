@@ -37,6 +37,9 @@ class DeviceCameraController(
     private var frameCount = 0
     private var lastFrameTime = 0L
     private val frameIntervalMs = 100 // Limitar a 10 FPS
+    private val stillLock = Any()
+    @Volatile
+    private var lastFullFrame: Bitmap? = null
 
     fun start() {
         if (started) return
@@ -60,13 +63,38 @@ class DeviceCameraController(
     }
 
     fun stop() {
+        release()
+    }
+
+    fun release() {
         started = false
+        synchronized(stillLock) {
+            lastFullFrame?.recycle()
+            lastFullFrame = null
+        }
         try {
             captureSession?.close()
             cameraDevice?.close()
             imageReader?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao parar câmera", e)
+        }
+    }
+
+    fun snapshotFull(): Bitmap? {
+        val src = synchronized(stillLock) {
+            lastFullFrame?.copy(Bitmap.Config.ARGB_8888, false)
+        } ?: return null
+        val mirror = android.graphics.Matrix().apply { preScale(-1f, 1f) }
+        val flipped = Bitmap.createBitmap(src, 0, 0, src.width, src.height, mirror, true)
+        if (flipped !== src) src.recycle()
+        return flipped
+    }
+
+    private fun rememberFrame(bitmap: Bitmap) {
+        synchronized(stillLock) {
+            lastFullFrame?.recycle()
+            lastFullFrame = bitmap.copy(Bitmap.Config.ARGB_8888, false)
         }
     }
 
@@ -137,6 +165,7 @@ class DeviceCameraController(
                         Log.i(TAG, "Frames processados: $frameCount (${image.width}x${image.height})")
                     }
                     val bitmap = yuvToRgb(image)
+                    rememberFrame(bitmap)
                     onFrameBitmap(bitmap)
                 } finally {
                     image.close()

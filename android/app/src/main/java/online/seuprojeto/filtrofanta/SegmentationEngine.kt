@@ -47,11 +47,50 @@ class SegmentationEngine(context: Context) {
     }
 
     companion object {
-        fun refineAlpha(flat: FloatArray, w: Int, h: Int): FloatArray {
+        /** Preview ao vivo: suaviza borda sem morfologia pesada da foto final. */
+        fun refineAlphaPreview(flat: FloatArray, w: Int, h: Int): FloatArray {
             val a = FloatArray(flat.size)
             for (i in flat.indices) {
                 var v = flat[i].coerceIn(0f, 1f)
-                if (v < 0.04f) v = 0f
+                if (v < 0.06f) v = 0f
+                a[i] = v
+            }
+            val blurred = FloatArray(a.size)
+            box3(a, blurred, w, h)
+            box3(blurred, a, w, h)
+            for (i in a.indices) {
+                a[i] = smoothstep(0.1f, 0.7f, a[i])
+            }
+            return a
+        }
+
+        /** Upsample máscara para o tamanho do crop — borda menos “pixelada” no preview. */
+        fun upsampleBilinear(
+            src: FloatArray,
+            sw: Int,
+            sh: Int,
+            dw: Int,
+            dh: Int,
+        ): FloatArray {
+            if (sw == dw && sh == dh) return src
+            val dst = FloatArray(dw * dh)
+            val xScale = if (dw <= 1) 0f else (sw - 1f) / (dw - 1f)
+            val yScale = if (dh <= 1) 0f else (sh - 1f) / (dh - 1f)
+            for (y in 0 until dh) {
+                val sy = y * yScale
+                for (x in 0 until dw) {
+                    dst[y * dw + x] = sampleBilinear(src, sw, sh, x * xScale, sy)
+                }
+            }
+            return dst
+        }
+
+        /** Foto polaroid: refinamento na resolução final (chamar após upsample da máscara bruta). */
+        fun refineAlphaStill(flat: FloatArray, w: Int, h: Int): FloatArray {
+            val a = FloatArray(flat.size)
+            for (i in flat.indices) {
+                var v = flat[i].coerceIn(0f, 1f)
+                if (v < 0.035f) v = 0f
                 a[i] = v
             }
             val dil = FloatArray(a.size)
@@ -65,10 +104,14 @@ class SegmentationEngine(context: Context) {
             box3(b1, clo, w, h)
             box3(clo, b1, w, h)
             box5(b1, clo, w, h)
-            for (i in clo.indices) {
-                clo[i] = smoothstep(0.16f, 0.78f, clo[i])
+            box3(clo, b1, w, h)
+            for (i in b1.indices) {
+                b1[i] = smoothstep(0.1f, 0.86f, b1[i])
             }
-            return clo
+            val tight = FloatArray(b1.size)
+            min3(b1, tight, w, h)
+            box3(tight, b1, w, h)
+            return b1
         }
 
         private fun smoothstep(e0: Float, e1: Float, x: Float): Float {
@@ -138,6 +181,12 @@ class SegmentationEngine(context: Context) {
                     dst[y * w + x] = sum / 9f
                 }
             }
+        }
+
+        fun sampleNearest(mask: FloatArray, mw: Int, mh: Int, fx: Float, fy: Float): Float {
+            val x = fx.toInt().coerceIn(0, mw - 1)
+            val y = fy.toInt().coerceIn(0, mh - 1)
+            return mask[y * mw + x]
         }
 
         fun sampleBilinear(mask: FloatArray, mw: Int, mh: Int, fx: Float, fy: Float): Float {

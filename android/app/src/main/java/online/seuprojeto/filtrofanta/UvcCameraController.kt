@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.SurfaceTexture
+import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Handler
@@ -25,7 +26,13 @@ class UvcCameraController(
     private val textureView: TextureView,
     private val onStatus: (String) -> Unit,
     private val onFrameBitmap: (Bitmap) -> Unit,
+    private val onNeedUsbPermission: (UsbDevice) -> Unit = {},
 ) : TextureView.SurfaceTextureListener {
+
+    private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+    private val appLabel: String by lazy {
+        context.applicationInfo.loadLabel(context.packageManager)?.toString() ?: "Cabine Fanta"
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val encodeBusy = AtomicBoolean(false)
@@ -45,6 +52,10 @@ class UvcCameraController(
     private var previewSurface: SurfaceTexture? = null
     private var previewGlThread: HandlerThread? = null
     private var frameLog = 0
+    private var selectedDeviceId: Int? = null
+    private var selectInFlight = false
+    private var permissionAttempts = 0
+    private var pendingPermissionRetry: Runnable? = null
 
     fun setCaptureResolution(w: Int, h: Int) {
         captureW = w
@@ -53,15 +64,20 @@ class UvcCameraController(
     }
 
     fun start() {
-        if (usbStarted && cameraHelper != null) return
+        cameraHelper?.let { existing ->
+            if (previewReady) return
+            pickUvcDevice(existing.deviceList)?.let { trySelectDevice(existing, it, "start-resume") }
+            return
+        }
+        if (usbStarted) return
         usbStarted = true
         onStatus("Procurando câmera USB (EMEET)…")
         val helper = CameraHelper()
         helper.setStateCallback(object : ICameraHelper.StateCallback {
             override fun onAttach(device: UsbDevice) {
-                Log.i(TAG, "USB attach ${device.deviceName}")
-                onStatus("Permita USB: OK → Cabine Fanta → Sempre")
-                helper.selectDevice(device)
+                logDevice("USB attach", device)
+                if (previewReady) return
+                trySelectDevice(helper, device, "attach")
             }
 
             override fun onDeviceOpen(device: UsbDevice, isFirstOpen: Boolean) {
@@ -70,6 +86,10 @@ class UvcCameraController(
 
             override fun onCameraOpen(device: UsbDevice) {
                 if (previewReady) return
+                cancelPermissionRetry()
+                selectInFlight = false
+                permissionAttempts = 0
+                selectedDeviceId = device.deviceId
                 val sz = helper.previewSize
                 if (sz != null) {
                     previewW = sz.width
@@ -93,21 +113,41 @@ class UvcCameraController(
 
             override fun onDetach(device: UsbDevice) {
                 previewReady = false
-                onStatus("Câmera desconectada. Reconecte a EMEET.")
+                selectInFlight = false
+                cancelPermissionRetry()
+                if (selectedDeviceId == device.deviceId) selectedDeviceId = null
+                onStatus("EMEET desconectou. OTG com energia, reconecte e aguarde estabilizar.")
             }
 
             override fun onCancel(device: UsbDevice) {
-                Log.w(TAG, "USB cancel ${device.deviceName}")
-                usbStarted = false
+                Log.w(TAG, "USB cancel ${device.deviceName} attempts=$permissionAttempts")
+                selectInFlight = false
                 previewReady = false
-                onStatus("Toque OK e escolha Sempre no Cabine Fanta")
-                mainHandler.postDelayed({ helper.selectDevice(device) }, 1200)
+                permissionAttempts += 1
+                if (permissionAttempts >= MAX_PERMISSION_ATTEMPTS) {
+                    onStatus(
+                        "Permissão USB bloqueada. Feche o app, reconecte a EMEET, " +
+                            "abra de novo e toque OK + Sempre.",
+                    )
+                    return
+                }
+                onStatus("Toque OK e marque Sempre usar neste app ($appLabel)")
+                schedulePermissionRetry(helper, device)
             }
         })
         cameraHelper = helper
         val list = helper.deviceList
         Log.i(TAG, "USB devices ${list?.size ?: 0}")
-        if (!list.isNullOrEmpty()) helper.selectDevice(list[0])
+        list?.forEach { logDevice("enumerated", it) }
+        val pick = pickUvcDevice(list)
+        if (pick != null) {
+            onStatus("EMEET/UVC encontrada — aguarde permissão USB")
+            trySelectDevice(helper, pick, "enumerated")
+        } else if (!list.isNullOrEmpty()) {
+            onStatus("USB conectado, mas não é câmera UVC. Use a EMEET.")
+        } else {
+            onStatus("Conecte a EMEET no OTG (USB-C) e toque em Permitir")
+        }
     }
 
     fun snapshotFull(): Bitmap? {
@@ -146,10 +186,37 @@ class UvcCameraController(
     }
 
     fun onUsbIntent() {
-        restartUsb("usb-intent")
+        if (previewReady) return
+        val helper = cameraHelper
+        if (helper == null) {
+            start()
+            return
+        }
+        pickUvcDevice(helper.deviceList)?.let { trySelectDevice(helper, it, "usb-intent") }
+    }
+
+    /** Chamado depois que MainActivity recebe UsbManager.EXTRA_PERMISSION_GRANTED. */
+    fun onUsbPermissionGranted(device: UsbDevice) {
+        val helper = cameraHelper ?: return
+        permissionAttempts = 0
+        trySelectDevice(helper, device, "usb-granted")
+    }
+
+    fun onUsbPermissionDenied() {
+        selectInFlight = false
+    }
+
+    /** Após OK no popup USB (receiver pode perder o broadcast se a Activity pausou). */
+    fun resumeAfterUsbPermission() {
+        if (previewReady) return
+        val helper = cameraHelper ?: return
+        val pick = pickUvcDevice(helper.deviceList) ?: return
+        if (!usbManager.hasPermission(pick)) return
+        trySelectDevice(helper, pick, "resume-permission")
     }
 
     fun release() {
+        cancelPermissionRetry()
         try {
             frameExecutor.shutdownNow()
         } catch (_: Exception) {
@@ -169,19 +236,62 @@ class UvcCameraController(
         } catch (_: Exception) {
         }
         previewGlThread = null
-    }
-
-    private fun restartUsb(reason: String) {
-        Log.i(TAG, "restartUsb $reason")
         usbStarted = false
         previewReady = false
-        frameLog = 0
-        try {
-            cameraHelper?.release()
-        } catch (_: Exception) {
+        selectInFlight = false
+        selectedDeviceId = null
+        permissionAttempts = 0
+    }
+
+    private fun trySelectDevice(helper: ICameraHelper, device: UsbDevice, reason: String) {
+        if (!isUvcCamera(device)) {
+            Log.i(TAG, "trySelect skip non-UVC reason=$reason")
+            return
         }
-        cameraHelper = null
-        start()
+        if (previewReady && selectedDeviceId == device.deviceId) return
+        if (selectInFlight && selectedDeviceId == device.deviceId && !usbManager.hasPermission(device)) {
+            Log.i(TAG, "trySelect aguardando permissão USB reason=$reason id=${device.deviceId}")
+            return
+        }
+        if (permissionAttempts >= MAX_PERMISSION_ATTEMPTS) return
+        selectedDeviceId = device.deviceId
+        selectInFlight = true
+        logDevice("trySelect reason=$reason", device)
+        if (!usbManager.hasPermission(device)) {
+            onStatus("Confirme acesso USB à EMEET (marque Sempre)")
+            onNeedUsbPermission(device)
+            return
+        }
+        onStatus("Abrindo EMEET…")
+        try {
+            helper.selectDevice(device)
+        } catch (err: Exception) {
+            selectInFlight = false
+            Log.e(TAG, "selectDevice failed", err)
+        }
+    }
+
+    private fun schedulePermissionRetry(helper: ICameraHelper, device: UsbDevice) {
+        cancelPermissionRetry()
+        val delayMs = 4000L + permissionAttempts * 2000L
+        val task = Runnable {
+            pendingPermissionRetry = null
+            if (previewReady) return@Runnable
+            val stillConnected = helper.deviceList?.any { it.deviceId == device.deviceId } == true
+            if (!stillConnected) {
+                selectInFlight = false
+                onStatus("EMEET sumiu do USB. Reconecte (hub OTG com energia ajuda).")
+                return@Runnable
+            }
+            trySelectDevice(helper, device, "permission-retry")
+        }
+        pendingPermissionRetry = task
+        mainHandler.postDelayed(task, delayMs)
+    }
+
+    private fun cancelPermissionRetry() {
+        pendingPermissionRetry?.let { mainHandler.removeCallbacks(it) }
+        pendingPermissionRetry = null
     }
 
     private fun scheduleOpenCamera(helper: ICameraHelper, attempt: Int) {
@@ -221,7 +331,7 @@ class UvcCameraController(
         val mjpeg = sizes.filter { it.type == UVCCamera.FRAME_FORMAT_MJPEG }
         val pool = if (mjpeg.isNotEmpty()) mjpeg else sizes
         // Preferir resoluções menores para reduzir delay (prioridade: velocidade > qualidade)
-        val prefer = listOf(640 to 480, 800 to 600, 960 to 720, 1280 to 720, 1920 to 1080)
+        val prefer = listOf(320 to 240, 640 to 480, 800 to 600, 960 to 720, 1280 to 720)
         for ((w, h) in prefer) {
             pool.firstOrNull { it.width == w && it.height == h }?.let { return it }
         }
@@ -275,6 +385,10 @@ class UvcCameraController(
         val n = frame.remaining()
         if (n < 100 || !previewReady) return
         frameLog++
+        if (frameLog % 3 != 0) {
+            frame.position(frame.limit())
+            return
+        }
         if (encodeBusy.getAndSet(true)) {
             frame.position(frame.limit())
             return
@@ -301,7 +415,7 @@ class UvcCameraController(
             val opts = android.graphics.BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.ARGB_8888
                 inScaled = false
-                inSampleSize = 2
+                inSampleSize = 5
             }
             bmp = android.graphics.BitmapFactory.decodeByteArray(data, 0, n, opts)
         } else {
@@ -312,7 +426,7 @@ class UvcCameraController(
                 stillW = sized.second
                 stillH = sized.third
             }
-            bmp = nv21ToBitmap(sized.first, sized.second, sized.third, step = 2)
+            bmp = nv21ToBitmap(sized.first, sized.second, sized.third, step = 3)
         }
         bmp ?: return
         val inset = maxOf(1, bmp.height / 40)
@@ -393,8 +507,52 @@ class UvcCameraController(
         return Bitmap.createBitmap(argb, outW, outH, Bitmap.Config.ARGB_8888)
     }
 
+    private fun isUvcCamera(device: UsbDevice): Boolean {
+        if (device.deviceClass == UsbConstants.USB_CLASS_VIDEO) return true
+        if (device.deviceClass == 239 && device.deviceSubclass == 2) return true
+        for (i in 0 until device.interfaceCount) {
+            if (device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_VIDEO) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun scoreUvcDevice(device: UsbDevice): Int {
+        var score = 0
+        val label = buildString {
+            append(device.manufacturerName.orEmpty())
+            append(' ')
+            append(device.productName.orEmpty())
+            append(' ')
+            append(device.deviceName.orEmpty())
+        }
+        if (label.contains("emeet", ignoreCase = true)) score += 100
+        if (label.contains("smartcam", ignoreCase = true)) score += 40
+        if (label.contains("webcam", ignoreCase = true)) score += 20
+        if (isUvcCamera(device)) score += 10
+        return score
+    }
+
+    private fun pickUvcDevice(devices: List<UsbDevice>?): UsbDevice? {
+        if (devices.isNullOrEmpty()) return null
+        val uvc = devices.filter { isUvcCamera(it) }
+        if (uvc.isEmpty()) return null
+        return uvc.maxByOrNull { scoreUvcDevice(it) }
+    }
+
+    private fun logDevice(event: String, device: UsbDevice) {
+        Log.i(
+            TAG,
+            "$event vid=0x${device.vendorId.toString(16)} pid=0x${device.productId.toString(16)} " +
+                "class=${device.deviceClass} name=${device.deviceName} " +
+                "product=${device.productName} mfg=${device.manufacturerName}",
+        )
+    }
+
     companion object {
         private const val TAG = "FiltroFantaUvc"
         private const val OFFSCREEN_TEX_ID = 42
+        private const val MAX_PERMISSION_ATTEMPTS = 3
     }
 }

@@ -66,9 +66,12 @@ class BoothAssets(context: Context, private val imageConfig: BoothImageConfig) {
         private const val BG_LOCKER_BW = "fundo_lockeroom_pb.webp"
         const val CHARACTER_X_SHIFT = 0.16f
 
-        /** Preview ao vivo (leve). A foto final usa VIEW_W/H. */
-        const val PREVIEW_W = 480
-        const val PREVIEW_H = 600
+        /** Preview ao vivo (bem leve). Foto final usa resolução cheia em renderStill(). */
+        const val PREVIEW_W = 256
+        const val PREVIEW_H = 320
+        /** Entrada da IA no preview — fixo e pequeno para baixa latência. */
+        const val PREVIEW_SEG_W = 128
+        const val PREVIEW_SEG_H = 160
         const val VIEW_W = 840
         const val VIEW_H = 1050
 

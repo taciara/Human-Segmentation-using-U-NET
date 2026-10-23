@@ -2,4 +2,6 @@
 <resources>
     <usb-device class="239" subclass="2" protocol="1" />
     <usb-device class="14" />
+    <!-- EMEET SmartCam S600L (vid 0x328f, pid 0x00ef) -->
+    <usb-device vendor-id="12943" product-id="239" />
 </resources>

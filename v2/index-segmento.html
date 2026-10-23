@@ -170,7 +170,7 @@
             <div class="status" id="status">Carregando segmentação...</div>
             <div id="loadingOverlay" class="loading">
                 <div class="spinner"></div>
-                <div>Preparando...</div>
+                <div>Preparando segmentação...</div>
             </div>
             <div class="camera-controls">
                 <button id="captureBtn" onclick="capturePhoto()">📸</button>
@@ -193,17 +193,18 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2"></script>
 
     <script>
         let state = {
             video: null,
             canvas: null,
             ctx: null,
-            segmenter: null,
+            net: null,
             capturedPhoto: null,
             isProcessing: false,
-            segmenterReady: false
+            netReady: false
         };
 
         function showScreen(screenId) {
@@ -211,36 +212,18 @@
             document.getElementById(screenId).classList.add('active');
         }
 
-        async function waitForMediaPipe(maxWait = 60000) {
-            const startTime = Date.now();
-            while (Date.now() - startTime < maxWait) {
-                if (window.FilesetResolver && window.ImageSegmenter) {
-                    return true;
-                }
-                await new Promise(r => setTimeout(r, 500));
-            }
-            throw new Error('MediaPipe não carregou');
-        }
-
         async function initSegmenter() {
             try {
-                await waitForMediaPipe();
+                document.getElementById('status').textContent = 'Carregando modelo...';
 
-                const { FilesetResolver, ImageSegmenter } = window;
-                const vision = await FilesetResolver.forVisionTasks(
-                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-                );
-
-                state.segmenter = await ImageSegmenter.createFromOptions(vision, {
-                    baseOptions: {
-                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float32/latest/selfie_segmenter.tflite'
-                    },
-                    runningMode: 'VIDEO',
-                    outputCategoryMask: true,
-                    outputConfidenceMasks: false
+                state.net = await bodyPix.load({
+                    architecture: 'MobileNetV1',
+                    outputStride: 16,
+                    multiplier: 0.75,
+                    quantBytes: 2
                 });
 
-                state.segmenterReady = true;
+                state.netReady = true;
                 document.getElementById('loadingOverlay').style.display = 'none';
                 document.getElementById('status').textContent = '✅ Pronto!';
             } catch (err) {
@@ -259,8 +242,8 @@
 
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
                         facingMode: 'user'
                     },
                     audio: false
@@ -285,7 +268,7 @@
             }
         }
 
-        function processFrame() {
+        async function processFrame() {
             const ctx = state.ctx;
             const video = state.video;
             const canvas = state.canvas;
@@ -298,41 +281,49 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Se segmenter pronto, fazer segmentação
-            if (state.segmenterReady && state.segmenter) {
+            if (state.netReady && state.net) {
                 try {
-                    const timestamp = performance.now();
-                    const result = state.segmenter.segmentForVideo(video, timestamp);
+                    // Desenhar vídeo primeiro
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                    if (result.categoryMask) {
-                        const mask = result.categoryMask.getAsFloat32Array();
-                        const imageData = ctx.createImageData(canvas.width, canvas.height);
-                        const data = imageData.data;
+                    // Obter segmentação
+                    const segmentation = await state.net.segmentPerson(video, {
+                        flipHorizontal: false,
+                        internalResolution: 'medium',
+                        segmentationThreshold: 0.5
+                    });
 
-                        // Copiar apenas pixels da pessoa (máscara)
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        const videoImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const videoData = videoImageData.data;
+                    // Obter pixel data
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    const mask = segmentation.data;
 
-                        for (let i = 0; i < mask.length; i++) {
-                            const isForeground = mask[i] > 0.5;
-                            const pixelIndex = i * 4;
+                    // Redraw fundo
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                            if (isForeground) {
-                                data[pixelIndex] = videoData[pixelIndex];
-                                data[pixelIndex + 1] = videoData[pixelIndex + 1];
-                                data[pixelIndex + 2] = videoData[pixelIndex + 2];
-                                data[pixelIndex + 3] = 255;
-                            }
+                    // Reextrair vídeo
+                    const videoData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const videoPixels = videoData.data;
+
+                    // Aplicar máscara
+                    for (let i = 0; i < mask.length; i++) {
+                        const isForeground = mask[i] > 0; // 1 = pessoa, 0 = fundo
+                        const pixelIndex = i * 4;
+
+                        if (isForeground) {
+                            data[pixelIndex] = videoPixels[pixelIndex];       // R
+                            data[pixelIndex + 1] = videoPixels[pixelIndex + 1]; // G
+                            data[pixelIndex + 2] = videoPixels[pixelIndex + 2]; // B
+                            data[pixelIndex + 3] = 255;                       // A
                         }
-
-                        // Redraw fundo
-                        ctx.fillStyle = gradient;
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        // Colocar pessoa por cima
-                        ctx.putImageData(imageData, 0, 0);
                     }
+
+                    ctx.putImageData(imageData, 0, 0);
                 } catch (err) {
                     console.error('Erro na segmentação:', err);
+                    // Fallback: apenas câmera
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 }
             } else {
                 // Fallback: apenas câmera com fundo

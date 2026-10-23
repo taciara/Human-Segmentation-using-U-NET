@@ -9,8 +9,8 @@ class CameraConfigActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val prefs = getSharedPreferences("BoothPrefs", MODE_PRIVATE)
-        val currentCamera = prefs.getString("cameraType", "emeet") ?: "emeet"
+        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        val currentCamera = prefs.getString(KEY_CAMERA_TYPE, "emeet") ?: "emeet"
 
         val group = RadioGroup(this).apply {
             layoutParams = RadioGroup.LayoutParams(
@@ -20,7 +20,7 @@ class CameraConfigActivity : AppCompatActivity() {
 
             val emeetRadio = RadioButton(this@CameraConfigActivity).apply {
                 id = 1
-                text = "EMEET USB (Tablet com câmera USB conectada)"
+                text = "EMEET USB (OTG no USB-C — tablet ou celular)"
                 isChecked = (currentCamera == "emeet")
             }
             addView(emeetRadio)
@@ -34,12 +34,17 @@ class CameraConfigActivity : AppCompatActivity() {
 
             setOnCheckedChangeListener { _, checkedId ->
                 val selected = if (checkedId == 1) "emeet" else "device"
-                prefs.edit().putString("cameraType", selected).apply()
+                prefs.edit().putString(KEY_CAMERA_TYPE, selected).apply()
                 setResult(RESULT_OK)
                 finish()
             }
         }
 
         setContentView(group)
+    }
+
+    companion object {
+        const val PREFS_NAME = "booth_prefs"
+        const val KEY_CAMERA_TYPE = "camera_type"
     }
 }

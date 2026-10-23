@@ -35,18 +35,34 @@ class BoothCompositor(private val assets: BoothAssets) {
         val tw = cropped.width
         val th = cropped.height
         val sceneBg = sceneFor(tw, th, personBw)
-        val alpha = SegmentationEngine.refineAlpha(mask, maskW, maskH)
+        val alpha = if (highQuality) {
+            val full = if (maskW == tw && maskH == th) {
+                mask
+            } else {
+                SegmentationEngine.upsampleBilinear(mask, maskW, maskH, tw, th)
+            }
+            SegmentationEngine.refineAlphaStill(full, tw, th)
+        } else {
+            val refined = SegmentationEngine.refineAlphaPreview(mask, maskW, maskH)
+            if (maskW == tw && maskH == th) {
+                refined
+            } else {
+                SegmentationEngine.upsampleBilinear(refined, maskW, maskH, tw, th)
+            }
+        }
+        val alphaW = tw
+        val alphaH = th
         val pixels = IntArray(tw * th)
         cropped.getPixels(pixels, 0, tw, 0, 0, tw, th)
         val bgPixels = IntArray(tw * th)
         sceneBg.getPixels(bgPixels, 0, tw, 0, 0, tw, th)
-        val xScale = if (tw <= 1) 1f else (maskW - 1f) / (tw - 1f)
-        val yScale = if (th <= 1) 1f else (maskH - 1f) / (th - 1f)
+        val xScale = if (tw <= 1) 1f else (alphaW - 1f) / (tw - 1f)
+        val yScale = if (th <= 1) 1f else (alphaH - 1f) / (th - 1f)
         val zoom = BoothAssets.PERSON_ZOOM
         val cx = tw / 2f
         val cy = th.toFloat()
         val outPixels = IntArray(tw * th)
-        val needLerp = highQuality
+        val lerpPerson = highQuality
         for (y in 0 until th) {
             for (x in 0 until tw) {
                 val i = y * tw + x
@@ -59,12 +75,12 @@ class BoothCompositor(private val assets: BoothAssets) {
                 }
                 val ix = sx.toInt().coerceIn(0, tw - 1)
                 val iy = sy.toInt().coerceIn(0, th - 1)
-                val a = SegmentationEngine.sampleBilinear(alpha, maskW, maskH, sx * xScale, sy * yScale)
+                val a = SegmentationEngine.sampleBilinear(alpha, alphaW, alphaH, sx * xScale, sy * yScale)
                 if (a <= 0.02f) {
                     outPixels[i] = bg
                     continue
                 }
-                val p = if (needLerp) {
+                val p = if (lerpPerson) {
                     val ix1 = minOf(ix + 1, tw - 1)
                     val iy1 = minOf(iy + 1, th - 1)
                     lerpPixel(
@@ -78,8 +94,11 @@ class BoothCompositor(private val assets: BoothAssets) {
                 } else {
                     pixels[iy * tw + ix]
                 }
-                val fg = if (personBw) toGray(p) else p
-                if (a >= 0.995f) {
+                var fg = if (personBw) toGray(p) else p
+                if (highQuality && a in 0.12f..0.94f) {
+                    fg = suppressLightFringe(fg, bg, a)
+                }
+                if (a >= 0.985f) {
                     outPixels[i] = fg
                     continue
                 }
@@ -91,8 +110,8 @@ class BoothCompositor(private val assets: BoothAssets) {
                 )
             }
         }
-        if (highQuality) sharpenPerson(outPixels, bgPixels, tw, th)
-        val result = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
+        val config = if (highQuality) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565
+        val result = Bitmap.createBitmap(tw, th, config)
         result.setPixels(outPixels, 0, tw, 0, 0, tw, th)
         return result
     }
@@ -132,32 +151,17 @@ class BoothCompositor(private val assets: BoothAssets) {
         return Color.rgb(y, y, y)
     }
 
-    private fun sharpenPerson(px: IntArray, bg: IntArray, w: Int, h: Int) {
-        val src = px.copyOf()
-        val amount = 0.16f
-        for (y in 1 until h - 1) {
-            for (x in 1 until w - 1) {
-                val i = y * w + x
-                if (px[i] == bg[i]) continue
-                if (src[(y - 1) * w + x] == bg[(y - 1) * w + x]) continue
-                if (src[(y + 1) * w + x] == bg[(y + 1) * w + x]) continue
-                if (src[y * w + x - 1] == bg[y * w + x - 1]) continue
-                if (src[y * w + x + 1] == bg[y * w + x + 1]) continue
-                val c = src[i]
-                val up = src[(y - 1) * w + x]
-                val dn = src[(y + 1) * w + x]
-                val lf = src[y * w + x - 1]
-                val rt = src[y * w + x + 1]
-                fun ch(p: Int, s: Int) = (p ushr s) and 0xff
-                fun sharp(s: Int): Int {
-                    val v = ch(c, s) + amount * (
-                        4 * ch(c, s) - ch(up, s) - ch(dn, s) - ch(lf, s) - ch(rt, s)
-                    )
-                    return v.toInt().coerceIn(0, 255)
-                }
-                px[i] = Color.rgb(sharp(16), sharp(8), sharp(0))
-            }
-        }
+    /** Reduz halo claro (cabelo/fundo claro) na faixa semi-transparente. */
+    private fun suppressLightFringe(fg: Int, bg: Int, alpha: Float): Int {
+        val edge = ((0.94f - alpha) / 0.82f).coerceIn(0f, 1f)
+        if (edge <= 0.01f) return fg
+        val lumFg = 0.299f * Color.red(fg) + 0.587f * Color.green(fg) + 0.114f * Color.blue(fg)
+        val lumBg = 0.299f * Color.red(bg) + 0.587f * Color.green(bg) + 0.114f * Color.blue(bg)
+        val spill = (lumFg - lumBg - 14f).coerceAtLeast(0f) / 255f
+        if (spill <= 0f) return fg
+        val pull = (spill * edge * 0.85f).coerceIn(0f, 0.55f)
+        fun ch(f: Int, b: Int) = (f + ((b - f) * pull).toInt()).coerceIn(0, 255)
+        return Color.rgb(ch(Color.red(fg), Color.red(bg)), ch(Color.green(fg), Color.green(bg)), ch(Color.blue(fg), Color.blue(bg)))
     }
 
     private fun lerpPixel(p00: Int, p10: Int, p01: Int, p11: Int, tx: Float, ty: Float): Int {

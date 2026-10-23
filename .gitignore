@@ -8,11 +8,5 @@ _temp/
 
 photobooth_web.zip
 
-# APKs
-*.apk
-
 # Atalhos Windows
 *.lnk
-
-# Keystore exemplo
-android/keystore.properties.example

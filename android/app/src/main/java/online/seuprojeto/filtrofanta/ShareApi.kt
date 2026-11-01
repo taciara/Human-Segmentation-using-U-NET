@@ -12,8 +12,8 @@ object ShareApi {
             requestMethod = "POST"
             doInput = true
             doOutput = true
-            connectTimeout = 8_000
-            readTimeout = 12_000
+            connectTimeout = 30_000
+            readTimeout = 120_000
             useCaches = false
             setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
         }

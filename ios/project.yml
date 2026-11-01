@@ -1,0 +1,57 @@
+name: CabineFanta
+options:
+  bundleIdPrefix: online.seuprojeto
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: swift
+  xcodeVersion: "16"
+
+targets:
+  CabineFanta:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: CabineFanta/Sources
+    preBuildScripts:
+      - name: Copy Resources
+        script: |
+          set -e
+          DEST="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
+          SRC="$SRCROOT/CabineFanta/Resources"
+          cp "$SRC/backgrounds/fundo_lockeroom_pb.webp" "$DEST/"
+          cp "$SRC/backgrounds/fundo_lockeroom_color.webp" "$DEST/"
+          cp "$SRC/backgrounds/bg_foto.webp" "$DEST/"
+          cp "$SRC/backgrounds/bg_2.png" "$DEST/"
+          cp "$SRC/backgrounds/bg_orange.png" "$DEST/"
+          cp "$SRC/overlays/personagem.webp" "$DEST/"
+          cp "$SRC/branding/logo_fanta.png" "$DEST/"
+          cp "$SRC/branding/capa_app.png" "$DEST/"
+          cp "$SRC/branding/fanta_pop_condensed.otf" "$DEST/"
+          cp "$SRC/branding/fanta_sans_bold.otf" "$DEST/"
+          cp "$SRC/branding/fanta_sans_regular.otf" "$DEST/"
+    info:
+      path: CabineFanta/Info.plist
+      properties:
+        CFBundleDisplayName: Cabine Fanta
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSCameraUsageDescription: "A câmera é necessária para o photobooth."
+        NSPhotoLibraryAddUsageDescription: "Para salvar suas fotos do photobooth."
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+        UILaunchStoryboardName: ""
+        UIAppFonts:
+          - fanta_pop_condensed.otf
+          - fanta_sans_bold.otf
+          - fanta_sans_regular.otf
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: online.seuprojeto.cabinefanta
+      SWIFT_VERSION: "5.9"
+      TARGETED_DEVICE_FAMILY: "2"
+      SUPPORTS_MACCATALYST: "NO"
+      ENABLE_PREVIEWS: "NO"
+      CODE_SIGN_STYLE: Automatic

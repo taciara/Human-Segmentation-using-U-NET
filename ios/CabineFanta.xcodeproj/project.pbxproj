@@ -1,0 +1,340 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3E6CF84B0132897D7AB4E913 /* PreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBF5CA9CFF2AAE28D73C68E /* PreviewView.swift */; };
+		6EC1F52E8F11A6817F018721 /* CabineFantaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD4B8C6C035ACBBCDC8005A /* CabineFantaApp.swift */; };
+		79B109399C9B89508FF6F61D /* PolaroidExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6BF17E5D65EDB6F0329B5D4 /* PolaroidExporter.swift */; };
+		AC1897ADB7BE972876DD7E73 /* ShareApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD1BA36AB7BC029E85244E2 /* ShareApi.swift */; };
+		C2FBBB6FA63EFFE79DE780E0 /* CameraSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCF6B8C505035BFD587B9F52 /* CameraSession.swift */; };
+		EDD8CD5DA854C942B761D10C /* QrEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E82370590B07166812E36F /* QrEncoder.swift */; };
+		F9411343C4B2854B02BFA627 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D21EDB5E296E887A02771C /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		08E0A1950038C1BA48972EAD /* CabineFanta.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CabineFanta.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		15E82370590B07166812E36F /* QrEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QrEncoder.swift; sourceTree = "<group>"; };
+		5FBF5CA9CFF2AAE28D73C68E /* PreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
+		92D21EDB5E296E887A02771C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A6BF17E5D65EDB6F0329B5D4 /* PolaroidExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolaroidExporter.swift; sourceTree = "<group>"; };
+		BDD1BA36AB7BC029E85244E2 /* ShareApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareApi.swift; sourceTree = "<group>"; };
+		BFD4B8C6C035ACBBCDC8005A /* CabineFantaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CabineFantaApp.swift; sourceTree = "<group>"; };
+		FCF6B8C505035BFD587B9F52 /* CameraSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSession.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		8918992FE9F46454507A527F /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				BFD4B8C6C035ACBBCDC8005A /* CabineFantaApp.swift */,
+				FCF6B8C505035BFD587B9F52 /* CameraSession.swift */,
+				92D21EDB5E296E887A02771C /* ContentView.swift */,
+				A6BF17E5D65EDB6F0329B5D4 /* PolaroidExporter.swift */,
+				5FBF5CA9CFF2AAE28D73C68E /* PreviewView.swift */,
+				15E82370590B07166812E36F /* QrEncoder.swift */,
+				BDD1BA36AB7BC029E85244E2 /* ShareApi.swift */,
+			);
+			name = Sources;
+			path = CabineFanta/Sources;
+			sourceTree = "<group>";
+		};
+		9063E5CB898DB5119D6B045E = {
+			isa = PBXGroup;
+			children = (
+				8918992FE9F46454507A527F /* Sources */,
+				D581D4B519C918A4C62DE8D0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D581D4B519C918A4C62DE8D0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				08E0A1950038C1BA48972EAD /* CabineFanta.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		594D2D04D7D4F3D05DFFCB78 /* CabineFanta */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5404A2AB33D70B6BF11AF0C4 /* Build configuration list for PBXNativeTarget "CabineFanta" */;
+			buildPhases = (
+				5AD208F0D1E09098B114DCDA /* Copy Resources */,
+				48239BB8004DE623C72C3B9A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CabineFanta;
+			packageProductDependencies = (
+			);
+			productName = CabineFanta;
+			productReference = 08E0A1950038C1BA48972EAD /* CabineFanta.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3107D1BA8547C011E9BD95D5 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					594D2D04D7D4F3D05DFFCB78 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 9A1DA842D9CABB09550893E0 /* Build configuration list for PBXProject "CabineFanta" */;
+			developmentRegion = swift;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				swift,
+			);
+			mainGroup = 9063E5CB898DB5119D6B045E;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D581D4B519C918A4C62DE8D0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				594D2D04D7D4F3D05DFFCB78 /* CabineFanta */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5AD208F0D1E09098B114DCDA /* Copy Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Resources";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nDEST=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH\"\nSRC=\"$SRCROOT/CabineFanta/Resources\"\ncp \"$SRC/backgrounds/fundo_lockeroom_pb.webp\" \"$DEST/\"\ncp \"$SRC/backgrounds/fundo_lockeroom_color.webp\" \"$DEST/\"\ncp \"$SRC/backgrounds/bg_foto.webp\" \"$DEST/\"\ncp \"$SRC/backgrounds/bg_2.png\" \"$DEST/\"\ncp \"$SRC/backgrounds/bg_orange.png\" \"$DEST/\"\ncp \"$SRC/overlays/personagem.webp\" \"$DEST/\"\ncp \"$SRC/branding/logo_fanta.png\" \"$DEST/\"\ncp \"$SRC/branding/capa_app.png\" \"$DEST/\"\ncp \"$SRC/branding/fanta_pop_condensed.otf\" \"$DEST/\"\ncp \"$SRC/branding/fanta_sans_bold.otf\" \"$DEST/\"\ncp \"$SRC/branding/fanta_sans_regular.otf\" \"$DEST/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		48239BB8004DE623C72C3B9A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6EC1F52E8F11A6817F018721 /* CabineFantaApp.swift in Sources */,
+				C2FBBB6FA63EFFE79DE780E0 /* CameraSession.swift in Sources */,
+				F9411343C4B2854B02BFA627 /* ContentView.swift in Sources */,
+				79B109399C9B89508FF6F61D /* PolaroidExporter.swift in Sources */,
+				3E6CF84B0132897D7AB4E913 /* PreviewView.swift in Sources */,
+				EDD8CD5DA854C942B761D10C /* QrEncoder.swift in Sources */,
+				AC1897ADB7BE972876DD7E73 /* ShareApi.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5C3FB05D66E08FDF5E83F283 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = NO;
+				INFOPLIST_FILE = CabineFanta/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = online.seuprojeto.cabinefanta;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		60E93FF2D9F3BBCE8B597DEE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C6CEAD7EE441A5FDC5F4E181 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		D2C69F56B18ABDC5594EFBCD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = NO;
+				INFOPLIST_FILE = CabineFanta/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = online.seuprojeto.cabinefanta;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5404A2AB33D70B6BF11AF0C4 /* Build configuration list for PBXNativeTarget "CabineFanta" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5C3FB05D66E08FDF5E83F283 /* Debug */,
+				D2C69F56B18ABDC5594EFBCD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9A1DA842D9CABB09550893E0 /* Build configuration list for PBXProject "CabineFanta" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				60E93FF2D9F3BBCE8B597DEE /* Debug */,
+				C6CEAD7EE441A5FDC5F4E181 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 3107D1BA8547C011E9BD95D5 /* Project object */;
+}
